@@ -1,0 +1,39 @@
+{
+  "name": "tccpet",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "check-types": "turbo run check-types",
+    "dev:web": "turbo run dev -F web --",
+    "db:push": "turbo run db:push -F @tccpet/db --",
+    "db:studio": "turbo run db:studio -F @tccpet/db --",
+    "db:generate": "turbo run db:generate -F @tccpet/db --",
+    "db:migrate": "turbo run db:migrate -F @tccpet/db --",
+    "db:start": "turbo run db:start -F @tccpet/db --",
+    "db:watch": "turbo run db:watch -F @tccpet/db --",
+    "db:stop": "turbo run db:stop -F @tccpet/db --",
+    "db:down": "turbo run db:down -F @tccpet/db --"
+  },
+  "dependencies": {
+    "@tccpet/env": "*",
+    "dotenv": "^17.4.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tccpet/config": "*",
+    "@types/node": "^22.20.1",
+    "turbo": "^2.10.7",
+    "typescript": "^6.0.3"
+  },
+  "packageManager": "npm@11.16.0",
+  "allowScripts": {
+    "esbuild": true,
+    "sharp": true
+  }
+}
