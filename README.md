@@ -24,12 +24,27 @@ npm install
 
 ## Database Setup
 
-This project uses PostgreSQL with Drizzle ORM.
+This project uses local PostgreSQL with `pgvector` via Docker Compose.
 
-1. Make sure you have a PostgreSQL database set up.
-2. Update your `apps/web/.env` file with your PostgreSQL connection details.
+1. Configure `apps/web/.env` with your local database URL:
 
-3. Apply the schema to your database:
+```bash
+DATABASE_URL=postgresql://postgres:password@localhost:5433/tccpet
+```
+
+2. Start the local database:
+
+```bash
+npm run db:start
+```
+
+3. Confirm the `pgvector` extension is installed:
+
+```bash
+docker compose -f packages/db/docker-compose.yml exec postgres psql -U postgres -d tccpet -c "\dx vector"
+```
+
+4. Apply the schema to your database:
 
 ```bash
 npm run db:push
