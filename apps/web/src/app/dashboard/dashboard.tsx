@@ -1,15 +1,68 @@
-"use client";
-import { useQuery } from "@tanstack/react-query";
+'use client';
 
-import { authClient } from "@/lib/auth-client";
-import { trpc } from "@/utils/trpc";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Activity, Bell, Check, ChevronDown, Clock3, Dog, Pause, Play, Settings2, ShieldCheck, Video, Wifi } from 'lucide-react';
 
-export default function Dashboard({ session }: { session: typeof authClient.$Infer.Session }) {
-  const privateData = useQuery(trpc.privateData.queryOptions());
+type EventKind = 'pet_detected' | 'pet_left';
+type Filter = 'all' | 'alerts';
+type EventItem = { id: number; kind: EventKind; time: Date; timeLabel?: string; message: string; duration: string };
+type EngineStatus = { status: string; pet_present: boolean; sampling_rate?: string };
 
-  return (
-    <>
-      <p>API: {privateData.data?.message}</p>
-    </>
-  );
+const ENGINE_URL = 'http://localhost:8000';
+const mockEvents: EventItem[] = [
+  { id: 1, kind: 'pet_detected', time: new Date('2026-08-29T10:58:00'), timeLabel: '10:58:00', message: 'Pet detected in the living room', duration: '--' },
+  { id: 2, kind: 'pet_left', time: new Date('2026-08-29T10:42:00'), timeLabel: '10:42:00', message: 'Pet left the camera frame', duration: '16 min' },
+  { id: 3, kind: 'pet_detected', time: new Date('2026-08-29T10:16:00'), timeLabel: '10:16:00', message: 'Pet detected in the living room', duration: '--' },
+];
+
+function formatClock(date: Date) { return [date.getHours(), date.getMinutes(), date.getSeconds()].map((part) => String(part).padStart(2, '0')).join(':'); }
+function relativeTime(date: Date | null) { if (!date) return 'No recent activity'; const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000)); if (seconds < 10) return 'Just now'; if (seconds < 60) return `${seconds} seconds ago`; const minutes = Math.floor(seconds / 60); return `${minutes} minute${minutes === 1 ? '' : 's'} ago`; }
+function EventIcon({ kind }: { kind: EventKind }) { return kind === 'pet_detected' ? <Dog className="h-4 w-4" /> : <Bell className="h-4 w-4" />; }
+function StatusPill({ online, children }: { online: boolean; children: React.ReactNode }) { return <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold tracking-[0.12em] ${online ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300' : 'border-zinc-700 bg-zinc-800/70 text-zinc-400'}`}><span className={`h-1.5 w-1.5 rounded-full ${online ? 'animate-pulse bg-emerald-400' : 'bg-zinc-500'}`} />{children}</span>; }
+function MetricCard({ label, value, detail, accent, icon }: { label: string; value: string; detail: string; accent: string; icon: React.ReactNode }) { return <article className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-[0_14px_40px_rgba(0,0,0,0.15)]"><div className="mb-5 flex items-center justify-between"><span className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-500">{label}</span><span className={accent}>{icon}</span></div><p className="text-2xl font-semibold tracking-tight text-zinc-100">{value}</p><p className="mt-2 text-xs text-zinc-500">{detail}</p></article>; }
+
+export default function Dashboard() {
+  const [online, setOnline] = useState(false);
+  const [monitoring, setMonitoring] = useState(false);
+  const [present, setPresent] = useState(true);
+  const [lastSeen, setLastSeen] = useState<Date | null>(mockEvents[0].time);
+  const [events, setEvents] = useState<EventItem[]>(mockEvents);
+  const [filter, setFilter] = useState<Filter>('all');
+  const [camera, setCamera] = useState('Living room camera');
+  const [message, setMessage] = useState('');
+  const previousPresence = useRef(present);
+  const nextId = useRef(mockEvents.length + 1);
+
+  async function pollStatus() {
+    try {
+      const response = await fetch(`${ENGINE_URL}/status`, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Engine unavailable');
+      const data = (await response.json()) as EngineStatus;
+      setOnline(true); setPresent(data.pet_present);
+      if (data.pet_present) setLastSeen(new Date());
+      if (data.pet_present !== previousPresence.current) setEvents((current) => [{ id: nextId.current++, kind: data.pet_present ? 'pet_detected' : 'pet_left', time: new Date(), message: data.pet_present ? 'Pet detected in the living room' : 'Pet left the camera frame', duration: data.pet_present ? '--' : '5 min' }, ...current]);
+      previousPresence.current = data.pet_present;
+    } catch { setOnline(false); }
+  }
+
+  async function toggleMonitoring() {
+    const action = monitoring ? 'stop' : 'start';
+    try { const response = await fetch(`${ENGINE_URL}/stream/${action}`, { method: 'POST' }); if (!response.ok) throw new Error('Command failed'); setMonitoring(!monitoring); setMessage(monitoring ? 'Monitoring stopped.' : 'Monitoring started.'); }
+    catch { setMessage('Connect the FastAPI engine to control monitoring.'); }
+    window.setTimeout(() => setMessage(''), 3500);
+  }
+
+  useEffect(() => { void pollStatus(); const interval = window.setInterval(() => void pollStatus(), 3000); return () => window.clearInterval(interval); }, []);
+  const visibleEvents = useMemo(() => filter === 'alerts' ? events.filter((event) => event.kind === 'pet_left') : events, [events, filter]);
+  const detectionCount = events.filter((event) => event.kind === 'pet_detected').length;
+  const lastEvent = events[0];
+
+  return <main className="min-h-screen bg-[#090a0c] px-4 py-7 text-zinc-100 sm:px-8 lg:px-12"><div className="mx-auto max-w-7xl">
+    <header className="mb-8 flex flex-col gap-5 border-b border-zinc-800/80 pb-6 md:flex-row md:items-center md:justify-between"><div className="flex items-center gap-4"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400 text-zinc-950"><Dog className="h-5 w-5" /></div><div><p className="text-lg font-semibold tracking-tight text-white">PetVision <span className="text-emerald-400">AI</span></p><p className="text-xs text-zinc-500">Real-time pet presence monitoring</p></div></div><div className="flex flex-wrap items-center gap-3"><label className="relative flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300"><Video className="h-4 w-4 text-zinc-500" /><select value={camera} onChange={(event) => setCamera(event.target.value)} className="appearance-none bg-transparent pr-6 outline-none"><option>Living room camera</option><option>Backyard camera</option><option>Hallway camera</option></select><ChevronDown className="pointer-events-none absolute right-2 h-4 w-4 text-zinc-600" /></label><StatusPill online={online && monitoring}>{online && monitoring ? 'LIVE' : 'OFFLINE'}</StatusPill><button type="button" aria-label="Dashboard settings" className="rounded-lg border border-zinc-800 p-2 text-zinc-400 transition hover:border-zinc-600 hover:text-white"><Settings2 className="h-4 w-4" /></button></div></header>
+    <section className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Pet status" value={present ? 'PRESENT' : 'ABSENT'} detail={present ? 'Safe and visible in frame' : 'No pet detected recently'} accent={present ? 'text-emerald-400' : 'text-rose-400'} icon={<span className={`block h-2.5 w-2.5 rounded-full ${present ? 'bg-emerald-400' : 'bg-rose-400'}`} />} /><MetricCard label="Last seen" value={relativeTime(lastSeen)} detail={lastEvent ? `${lastEvent.timeLabel ?? formatClock(lastEvent.time)} · ${camera}` : 'No activity'} accent="text-sky-400" icon={<Clock3 className="h-4 w-4" />} /><MetricCard label="Detections today" value={String(detectionCount)} detail="Arrival events this session" accent="text-amber-400" icon={<Activity className="h-4 w-4" />} /><MetricCard label="System health" value={online ? 'Healthy' : 'Standby'} detail={online ? 'Engine connected · 2 FPS' : 'Waiting for local engine'} accent="text-emerald-400" icon={<ShieldCheck className="h-4 w-4" />} /></section>
+    <section className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(350px,0.65fr)]"><div className="min-w-0"><article className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/70"><div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4"><div><h2 className="font-medium text-white">Live camera</h2><p className="mt-1 text-xs text-zinc-500">{camera} · 2 FPS</p></div><StatusPill online={monitoring}>{monitoring ? 'LIVE FEED' : 'PAUSED'}</StatusPill></div><div className="relative aspect-video overflow-hidden bg-[#10151a]"><div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(52,211,153,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(52,211,153,.12) 1px, transparent 1px)', backgroundSize: '42px 42px' }} />{monitoring && <img src={`${ENGINE_URL}/stream/video`} alt="Live camera feed" className="absolute inset-0 h-full w-full object-cover" />}<div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(16,185,129,0.14),transparent_60%)]" /><div className="absolute left-5 top-5 flex items-center gap-2 rounded-md bg-black/50 px-3 py-2 text-xs text-zinc-300 backdrop-blur"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />{camera}</div><div className="absolute right-5 top-5 rounded-md bg-black/50 px-3 py-2 font-mono text-xs text-zinc-400 backdrop-blur">02 FPS</div>{!monitoring && <div className="absolute inset-0 flex flex-col items-center justify-center text-center"><div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-emerald-400/25 bg-emerald-400/10 text-emerald-400"><Video className="h-7 w-7" /></div><p className="text-sm font-medium text-zinc-300">Camera feed paused</p><p className="mt-2 max-w-xs text-xs text-zinc-600">{online ? 'Start monitoring to view the camera.' : 'Start the local AI engine to connect this camera.'}</p></div>}<div className="absolute bottom-5 left-5 font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-600">PETVISION / CAM-01</div></div><div className="flex flex-col gap-3 border-t border-zinc-800 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2 text-xs text-zinc-500"><Wifi className={`h-4 w-4 ${online ? 'text-emerald-400' : 'text-zinc-600'}`} />{online ? 'Engine connected' : 'Engine disconnected'}</div><button type="button" onClick={() => void toggleMonitoring()} disabled={!online} className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${monitoring ? 'border border-zinc-700 text-zinc-200 hover:bg-zinc-800' : 'bg-emerald-400 text-zinc-950 hover:bg-emerald-300'}`}>{monitoring ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}{monitoring ? 'Stop monitoring' : 'Start monitoring'}</button></div></article></div>
+      <article className="rounded-xl border border-zinc-800 bg-zinc-900/70"><div className="flex flex-col gap-4 border-b border-zinc-800 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-medium text-white">Alerts & events</h2><p className="mt-1 text-xs text-zinc-500">Live activity from your pet</p></div><div className="flex rounded-lg border border-zinc-800 p-0.5 text-xs"><button type="button" onClick={() => setFilter('all')} className={`rounded-md px-3 py-1.5 ${filter === 'all' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>All</button><button type="button" onClick={() => setFilter('alerts')} className={`rounded-md px-3 py-1.5 ${filter === 'alerts' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Alerts only</button></div></div><div className="max-h-[380px] overflow-y-auto px-5">{visibleEvents.map((event) => <div key={event.id} className="flex gap-3 border-b border-zinc-800/70 py-4 last:border-0"><div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${event.kind === 'pet_detected' ? 'bg-emerald-400/10 text-emerald-400' : 'bg-rose-400/10 text-rose-400'}`}><EventIcon kind={event.kind} /></div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><p className="text-sm text-zinc-200">{event.kind === 'pet_detected' ? 'Pet detected' : 'Pet left'}</p><time className="shrink-0 font-mono text-[10px] text-zinc-600">{event.timeLabel ?? formatClock(event.time)}</time></div><p className="mt-1 text-xs leading-5 text-zinc-500">{event.message}</p></div></div>)}{visibleEvents.length === 0 && <p className="py-10 text-center text-sm text-zinc-600">No alerts in this period.</p>}</div><div className="border-t border-zinc-800 px-5 py-3 text-center text-xs text-zinc-600">Updates automatically every 3 seconds</div></article></section>
+    <section className="mt-5 rounded-xl border border-zinc-800 bg-zinc-900/70"><div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4"><div><h2 className="font-medium text-white">Recent history</h2><p className="mt-1 text-xs text-zinc-500">Recorded activity from this session</p></div><button type="button" className="text-xs text-zinc-500 transition hover:text-white">View all</button></div><div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left text-sm"><thead className="text-[11px] uppercase tracking-[0.12em] text-zinc-600"><tr><th className="px-5 py-3 font-medium">Time</th><th className="px-5 py-3 font-medium">Event type</th><th className="px-5 py-3 font-medium">Duration absent</th><th className="px-5 py-3 font-medium">Status</th></tr></thead><tbody>{events.slice(0, 5).map((event) => <tr key={`history-${event.id}`} className="border-t border-zinc-800/70"><td className="px-5 py-3.5 font-mono text-xs text-zinc-500">{event.timeLabel ?? formatClock(event.time)}</td><td className="px-5 py-3.5"><span className={`inline-flex items-center gap-2 text-xs ${event.kind === 'pet_detected' ? 'text-emerald-300' : 'text-rose-300'}`}><span className={`h-1.5 w-1.5 rounded-full ${event.kind === 'pet_detected' ? 'bg-emerald-400' : 'bg-rose-400'}`} />{event.kind === 'pet_detected' ? 'Pet detected' : 'Pet left'}</span></td><td className="px-5 py-3.5 text-xs text-zinc-500">{event.duration}</td><td className="px-5 py-3.5"><span className={`inline-flex items-center gap-1.5 text-xs ${event.kind === 'pet_detected' ? 'text-emerald-400' : 'text-amber-400'}`}>{event.kind === 'pet_detected' ? <Check className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}{event.kind === 'pet_detected' ? 'Safe' : 'Monitoring'}</span></td></tr>)}</tbody></table></div></section>
+    <footer className="flex items-center justify-between py-5 text-xs text-zinc-600"><span>PetVision AI · Private local monitoring</span><span>{message || 'All systems operational'}</span></footer>
+  </div></main>;
 }

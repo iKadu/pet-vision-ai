@@ -12,7 +12,19 @@ import { useTheme } from "next-themes";
 import * as React from "react";
 
 export function ModeToggle() {
-  const { setTheme } = useTheme();
+  const [theme, setTheme] = React.useState<"light" | "dark" | "system">("system");
+
+  React.useEffect(() => {
+    const storedTheme = window.localStorage.getItem("theme") as "light" | "dark" | "system" | null;
+    setTheme(storedTheme ?? "system");
+  }, []);
+
+  React.useEffect(() => {
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const isDark = theme === "dark" || (theme === "system" && prefersDark);
+    document.documentElement.classList.toggle("dark", isDark);
+    window.localStorage.setItem("theme", theme);
+  }, [theme]);
 
   return (
     <DropdownMenu>

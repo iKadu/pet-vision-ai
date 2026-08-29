@@ -7,10 +7,11 @@
   ],
   "type": "module",
   "scripts": {
-    "dev": "turbo run dev --ui=stream",
+    "dev": "concurrently -k -n \"WEB,PYTHON\" -c \"cyan,magenta\" \"npm run dev:web\" \"npm run dev:ai\"",
+    "dev:web": "turbo run dev -F web --",
+    "dev:ai": "cd apps/ai-engine && .venv\\Scripts\\python.exe -m uvicorn main:app --reload --port 8000",
     "build": "turbo run build",
     "check-types": "turbo run check-types",
-    "dev:web": "turbo run dev -F web --",
     "db:push": "turbo run db:push -F @tccpet/db --",
     "db:studio": "turbo run db:studio -F @tccpet/db --",
     "db:generate": "turbo run db:generate -F @tccpet/db --",
@@ -28,6 +29,7 @@
   "devDependencies": {
     "@tccpet/config": "*",
     "@types/node": "^22.20.1",
+    "concurrently": "^8.2.2",
     "turbo": "^2.10.7",
     "typescript": "^6.0.3"
   },
