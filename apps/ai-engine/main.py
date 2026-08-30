@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from ultralytics import YOLO
+from core.detections import normalize_detections
 from core.stream import VideoStreamReader
 from urllib.parse import urlsplit, urlunsplit
 
@@ -27,8 +28,9 @@ model = YOLO("yolo11n.pt")
 camera_source = os.getenv("CAMERA_SOURCE", "0")
 stream_reader = VideoStreamReader(source=camera_source, target_fps=2.0)
 
-# Webhook do Next.js
-NEXTJS_WEBHOOK_URL = "http://localhost:3000/api/webhooks/detection"
+# URL da rota de Webhook no Next.js (ajuste a porta se o seu frontend rodar em 3001)
+NEXTJS_WEBHOOK_URL = os.getenv("NEXTJS_WEBHOOK_URL", "http://localhost:3001/api/webhooks/ai")
+WEBHOOK_SECRET = os.getenv("AI_WEBHOOK_SECRET")
 
 # IDs da classe COCO: 15 = cat, 16 = dog
 TARGET_CLASSES = {15: "cat", 16: "dog"}
@@ -63,7 +65,8 @@ def send_webhook_event(event_type: str, details: dict):
         "details": details
     }
     try:
-        response = requests.post(NEXTJS_WEBHOOK_URL, json=payload, timeout=0.8)
+        headers = {"x-webhook-secret": WEBHOOK_SECRET} if WEBHOOK_SECRET else {}
+        response = requests.post(NEXTJS_WEBHOOK_URL, json=payload, headers=headers, timeout=0.8)
         print(f"[IA Engine -> Webhook] Evento '{event_type}' enviado | Status: {response.status_code}")
     except requests.exceptions.RequestException as e:
         print(f"[IA Engine -> Webhook] Falha ao enviar evento: {e}")
@@ -79,6 +82,8 @@ def process_stream():
             # Filtra a inferência apenas para cães e gatos (classes 15 e 16)
             results = model.predict(source=frame, classes=list(TARGET_CLASSES.keys()), verbose=False)
             boxes = results[0].boxes
+            frame_height, frame_width = frame.shape[:2]
+            detections = normalize_detections(boxes, frame_width, frame_height, TARGET_CLASSES)
             
             pet_detected_in_frame = len(boxes) > 0
 
@@ -90,7 +95,9 @@ def process_stream():
                     is_pet_currently_present = True
                     send_webhook_event("pet_detected", {
                         "message": "Pet identificado no ambiente",
-                        "total_pets": len(boxes)
+                        "total_pets": len(detections),
+                        "coordinate_space": "normalized",
+                        "detections": detections,
                     })
                 
                 print(f"[IA Engine] Pet visível no frame | Contagem: {len(boxes)}")
