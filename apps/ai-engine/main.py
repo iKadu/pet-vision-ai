@@ -2,6 +2,7 @@ import time
 import os
 import requests
 import cv2
+from pathlib import Path
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -9,9 +10,12 @@ from dotenv import load_dotenv
 from ultralytics import YOLO
 from core.detections import normalize_detections
 from core.stream import VideoStreamReader
+from core.tracking import TrajectoryManager
 from urllib.parse import urlsplit, urlunsplit
 
-load_dotenv()
+# A configuração local do projeto deve prevalecer sobre valores antigos
+# eventualmente herdados do terminal/ambiente do sistema.
+load_dotenv(override=True)
 
 app = FastAPI(title="Pet Vision AI Engine", version="1.0.0")
 app.add_middleware(
@@ -24,9 +28,14 @@ app.add_middleware(
 # Modelo YOLO
 model = YOLO("yolo11n.pt")
 
-# A origem pode ser um índice de webcam (ex.: "0") ou uma URL RTSP/HTTP.
+# A origem pode ser um índice de webcam (ex.: "0"), "screen" ou uma URL RTSP/HTTP.
 camera_source = os.getenv("CAMERA_SOURCE", "0")
-stream_reader = VideoStreamReader(source=camera_source, target_fps=2.0)
+stream_reader = VideoStreamReader(
+    source=camera_source,
+    target_fps=2.0,
+    screen_monitor=int(os.getenv("SCREEN_MONITOR", "1")),
+    screen_region=os.getenv("SCREEN_REGION"),
+)
 
 # URL da rota de Webhook no Next.js (ajuste a porta se o seu frontend rodar em 3001)
 NEXTJS_WEBHOOK_URL = os.getenv("NEXTJS_WEBHOOK_URL", "http://localhost:3001/api/webhooks/ai")
@@ -34,6 +43,12 @@ WEBHOOK_SECRET = os.getenv("AI_WEBHOOK_SECRET")
 
 # IDs da classe COCO: 15 = cat, 16 = dog
 TARGET_CLASSES = {15: "cat", 16: "dog"}
+BYTETRACK_CONFIG = Path(__file__).parent / "core" / "bytetrack.yaml"
+trajectory_manager = TrajectoryManager(
+    max_points=int(os.getenv("TRAJECTORY_MAX_POINTS", "120")),
+    max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
+)
+TRACKING_WEBHOOK_INTERVAL_SECONDS = float(os.getenv("TRACKING_WEBHOOK_INTERVAL_SECONDS", "1"))
 
 def masked_camera_source(source: str | int) -> str:
     """Oculta a senha da URL antes de expor a origem no endpoint de status."""
@@ -55,13 +70,14 @@ def masked_camera_source(source: str | int) -> str:
 SECONDS_TO_CONSIDER_ABSENT = 5.0  # Tempo sem ver o pet para considerar que ele saiu
 last_seen_timestamp = None
 is_pet_currently_present = False
+last_tracking_webhook_timestamp = 0.0
 
 def send_webhook_event(event_type: str, details: dict):
     """Envia o estado do monitoramento para o Next.js."""
     payload = {
         "timestamp": time.time(),
         "event_type": event_type,  # 'pet_detected' ou 'pet_left'
-        "source": "webcam_0",
+        "source": masked_camera_source(stream_reader.source),
         "details": details
     }
     try:
@@ -72,7 +88,7 @@ def send_webhook_event(event_type: str, details: dict):
         print(f"[IA Engine -> Webhook] Falha ao enviar evento: {e}")
 
 def process_stream():
-    global last_seen_timestamp, is_pet_currently_present
+    global last_seen_timestamp, is_pet_currently_present, last_tracking_webhook_timestamp
     
     try:
         stream_reader.start()
@@ -80,10 +96,19 @@ def process_stream():
             current_time = time.time()
             
             # Filtra a inferência apenas para cães e gatos (classes 15 e 16)
-            results = model.predict(source=frame, classes=list(TARGET_CLASSES.keys()), verbose=False)
+            # ``persist=True`` conserva o estado do ByteTrack entre frames, para que
+            # o mesmo pet mantenha seu track_id após oclusões e movimentações curtas.
+            results = model.track(
+                source=frame,
+                classes=list(TARGET_CLASSES.keys()),
+                tracker=str(BYTETRACK_CONFIG),
+                persist=True,
+                verbose=False,
+            )
             boxes = results[0].boxes
             frame_height, frame_width = frame.shape[:2]
             detections = normalize_detections(boxes, frame_width, frame_height, TARGET_CLASSES)
+            detections = trajectory_manager.update(detections, current_time)
             
             pet_detected_in_frame = len(boxes) > 0
 
@@ -95,6 +120,15 @@ def process_stream():
                     is_pet_currently_present = True
                     send_webhook_event("pet_detected", {
                         "message": "Pet identificado no ambiente",
+                        "total_pets": len(detections),
+                        "coordinate_space": "normalized",
+                        "detections": detections,
+                    })
+
+                if current_time - last_tracking_webhook_timestamp >= TRACKING_WEBHOOK_INTERVAL_SECONDS:
+                    last_tracking_webhook_timestamp = current_time
+                    send_webhook_event("pet_tracking_update", {
+                        "message": "Trajetórias dos pets atualizadas",
                         "total_pets": len(detections),
                         "coordinate_space": "normalized",
                         "detections": detections,

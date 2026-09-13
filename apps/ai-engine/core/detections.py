@@ -2,6 +2,27 @@ from collections.abc import Iterable
 from typing import Any
 
 
+def _track_id_from_box(box: Any) -> int | None:
+    """Obtém o identificador do tracker, quando a caixa veio de ``model.track``."""
+    track_id = getattr(box, "id", None)
+    if track_id is None:
+        return None
+
+    try:
+        value = track_id[0]
+        return int(value.item() if hasattr(value, "item") else value)
+    except (IndexError, TypeError, ValueError):
+        return None
+
+
+def calculate_centroid(bbox: dict[str, float]) -> dict[str, float]:
+    """Calcula o centro de uma bounding box normalizada."""
+    return {
+        "x": round(bbox["x"] + bbox["width"] / 2, 6),
+        "y": round(bbox["y"] + bbox["height"] / 2, 6),
+    }
+
+
 def normalize_detections(
     boxes: Iterable[Any], frame_width: int, frame_height: int, class_names: dict[int, str]
 ) -> list[dict[str, Any]]:
@@ -23,18 +44,22 @@ def normalize_detections(
         bottom = min(max(y2, top), float(frame_height))
         class_id = int(box.cls[0].item())
 
-        detections.append(
-            {
-                "class_id": class_id,
-                "class_name": class_names.get(class_id, str(class_id)),
-                "confidence": round(float(box.conf[0].item()), 4),
-                "bbox": {
-                    "x": round(left / frame_width, 6),
-                    "y": round(top / frame_height, 6),
-                    "width": round((right - left) / frame_width, 6),
-                    "height": round((bottom - top) / frame_height, 6),
-                },
-            }
-        )
+        bbox = {
+            "x": round(left / frame_width, 6),
+            "y": round(top / frame_height, 6),
+            "width": round((right - left) / frame_width, 6),
+            "height": round((bottom - top) / frame_height, 6),
+        }
+        detection: dict[str, Any] = {
+            "class_id": class_id,
+            "class_name": class_names.get(class_id, str(class_id)),
+            "confidence": round(float(box.conf[0].item()), 4),
+            "bbox": bbox,
+            "centroid": calculate_centroid(bbox),
+        }
+        track_id = _track_id_from_box(box)
+        if track_id is not None:
+            detection["track_id"] = track_id
+        detections.append(detection)
 
     return detections
