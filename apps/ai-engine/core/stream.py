@@ -76,7 +76,11 @@ class VideoStreamReader:
                 self._release_capture()
                 return False
 
-        self.cap = cv2.VideoCapture(self.source)
+        backend = cv2.CAP_DSHOW if isinstance(self.source, int) and hasattr(cv2, "CAP_DSHOW") else cv2.CAP_ANY
+        self.cap = cv2.VideoCapture(self.source, backend)
+        if not self.cap.isOpened() and backend != cv2.CAP_ANY:
+            self._release_capture()
+            self.cap = cv2.VideoCapture(self.source, cv2.CAP_ANY)
         if not self.cap.isOpened():
             self._release_capture()
             return False

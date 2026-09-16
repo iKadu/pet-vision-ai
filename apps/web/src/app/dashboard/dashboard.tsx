@@ -6,7 +6,7 @@ import { Activity, Bell, Check, ChevronDown, Clock3, Dog, Pause, Play, Settings2
 type EventKind = 'pet_detected' | 'pet_left';
 type Filter = 'all' | 'alerts';
 type EventItem = { id: number; kind: EventKind; time: Date; timeLabel?: string; message: string; duration: string };
-type EngineStatus = { status: string; pet_present: boolean; sampling_rate?: string };
+type EngineStatus = { status: string; pet_present: boolean; sampling_rate?: string; stream_running?: boolean };
 
 const ENGINE_URL = 'http://localhost:8000';
 const mockEvents: EventItem[] = [
@@ -38,7 +38,7 @@ export default function Dashboard() {
       const response = await fetch(`${ENGINE_URL}/status`, { cache: 'no-store' });
       if (!response.ok) throw new Error('Engine unavailable');
       const data = (await response.json()) as EngineStatus;
-      setOnline(true); setPresent(data.pet_present);
+      setOnline(true); setPresent(data.pet_present); setMonitoring(Boolean(data.stream_running));
       if (data.pet_present) setLastSeen(new Date());
       if (data.pet_present !== previousPresence.current) setEvents((current) => [{ id: nextId.current++, kind: data.pet_present ? 'pet_detected' : 'pet_left', time: new Date(), message: data.pet_present ? 'Pet detected in the living room' : 'Pet left the camera frame', duration: data.pet_present ? '--' : '5 min' }, ...current]);
       previousPresence.current = data.pet_present;
@@ -47,7 +47,7 @@ export default function Dashboard() {
 
   async function toggleMonitoring() {
     const action = monitoring ? 'stop' : 'start';
-    try { const response = await fetch(`${ENGINE_URL}/stream/${action}`, { method: 'POST' }); if (!response.ok) throw new Error('Command failed'); setMonitoring(!monitoring); setMessage(monitoring ? 'Monitoring stopped.' : 'Monitoring started.'); }
+    try { const response = await fetch(`${ENGINE_URL}/stream/${action}`, { method: 'POST' }); if (!response.ok) throw new Error('Command failed'); setMonitoring(action === 'start'); setMessage(monitoring ? 'Monitoring stopped.' : 'Monitoring started.'); void pollStatus(); }
     catch { setMessage('Connect the FastAPI engine to control monitoring.'); }
     window.setTimeout(() => setMessage(''), 3500);
   }
