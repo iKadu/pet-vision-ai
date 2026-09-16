@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from dotenv import load_dotenv
 from ultralytics import YOLO
 from core.detections import normalize_detections
@@ -49,6 +50,9 @@ trajectory_manager = TrajectoryManager(
     max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
 )
 TRACKING_WEBHOOK_INTERVAL_SECONDS = float(os.getenv("TRACKING_WEBHOOK_INTERVAL_SECONDS", "1"))
+
+class StreamSourceRequest(BaseModel):
+    source: str
 
 def masked_camera_source(source: str | int) -> str:
     """Oculta a senha da URL antes de expor a origem no endpoint de status."""
@@ -171,6 +175,13 @@ def start_stream(background_tasks: BackgroundTasks):
         return {"message": "Stream já em execução."}
     background_tasks.add_task(process_stream)
     return {"message": "Monitoramento de presença iniciado."}
+
+@app.post("/stream/source")
+def set_stream_source(request: StreamSourceRequest):
+    if stream_reader.is_running:
+        stream_reader.stop()
+    stream_reader.source = stream_reader._normalize_source(request.source)
+    return {"message": "Fonte do stream atualizada.", "source": masked_camera_source(stream_reader.source)}
 
 @app.post("/stream/stop")
 def stop_stream():
