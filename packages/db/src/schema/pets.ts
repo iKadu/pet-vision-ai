@@ -1,5 +1,7 @@
 import { pgTable, text, timestamp, uuid, customType, doublePrecision, jsonb, index } from "drizzle-orm/pg-core";
 
+import { user } from "./auth";
+
 // Tipo customizado para suportar o vetor de 512 dimensões (Re-ID)
 const vector512 = customType<{ data: number[] }>({
   dataType() {
@@ -10,11 +12,19 @@ const vector512 = customType<{ data: number[] }>({
 // 1. Tabela de Pets
 export const pets = pgTable("pets", {
   id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id")
+    .references(() => user.id, { onDelete: "cascade" })
+    .notNull(),
   name: text("name").notNull(),
   species: text("species").notNull(), // 'dog' | 'cat'
   breed: text("breed"),
+  photoUrl: text("photo_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+}, (table) => [index("pets_user_id_idx").on(table.userId)]);
 
 // 2. Tabela de Embeddings Biométricos
 export const petEmbeddings = pgTable(
