@@ -50,6 +50,9 @@ trajectory_manager = TrajectoryManager(
     max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
 )
 TRACKING_WEBHOOK_INTERVAL_SECONDS = float(os.getenv("TRACKING_WEBHOOK_INTERVAL_SECONDS", "1"))
+last_processing_latency_ms = 0.0
+measured_fps = 0.0
+last_frame_timestamp = None
 
 class StreamSourceRequest(BaseModel):
     source: str
@@ -92,16 +95,22 @@ def send_webhook_event(event_type: str, details: dict):
         print(f"[IA Engine -> Webhook] Falha ao enviar evento: {e}")
 
 def process_stream():
-    global last_seen_timestamp, is_pet_currently_present, last_tracking_webhook_timestamp
+    global last_seen_timestamp, is_pet_currently_present, last_tracking_webhook_timestamp, last_processing_latency_ms, measured_fps, last_frame_timestamp
     
     try:
         stream_reader.start()
         for frame in stream_reader.read_sampled_frames():
             current_time = time.time()
+            if last_frame_timestamp is not None:
+                frame_delta = current_time - last_frame_timestamp
+                if frame_delta > 0:
+                    measured_fps = round(1 / frame_delta, 2)
+            last_frame_timestamp = current_time
             
             # Filtra a inferência apenas para cães e gatos (classes 15 e 16)
             # ``persist=True`` conserva o estado do ByteTrack entre frames, para que
             # o mesmo pet mantenha seu track_id após oclusões e movimentações curtas.
+            inference_started = time.perf_counter()
             results = model.track(
                 source=frame,
                 classes=list(TARGET_CLASSES.keys()),
@@ -109,6 +118,7 @@ def process_stream():
                 persist=True,
                 verbose=False,
             )
+            last_processing_latency_ms = round((time.perf_counter() - inference_started) * 1000, 1)
             boxes = results[0].boxes
             frame_height, frame_width = frame.shape[:2]
             detections = normalize_detections(boxes, frame_width, frame_height, TARGET_CLASSES)
@@ -167,6 +177,8 @@ def get_status():
         "sampling_rate": f"{stream_reader.target_fps} FPS"
         ,"camera_source": masked_camera_source(stream_reader.source),
         "stream_running": stream_reader.is_running,
+        "fps": measured_fps,
+        "latency_ms": last_processing_latency_ms,
     }
 
 @app.post("/stream/start")

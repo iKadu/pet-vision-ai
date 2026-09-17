@@ -1,15 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
-import type { Route } from 'next';
-import { usePathname } from 'next/navigation';
-import { Activity, Bell, Camera, Check, ChevronRight, Clock3, Dog, PawPrint, Wifi } from 'lucide-react';
+import { Activity, Bell, Check, Clock3, Dog, Wifi } from 'lucide-react';
 
 type EventKind = 'pet_detected' | 'pet_left';
 type Filter = 'all' | 'alerts';
 type EventItem = { id: number; kind: EventKind; time: Date; timeLabel?: string; message: string; duration: string };
-type EngineStatus = { status: string; pet_present: boolean; sampling_rate?: string; last_seen?: string | number | null };
+type EngineStatus = { status: string; pet_present: boolean; sampling_rate?: string; last_seen?: string | number | null; stream_running?: boolean; fps?: number; latency_ms?: number };
 
 const ENGINE_URL = 'http://localhost:8000';
 const mockEvents: EventItem[] = [
@@ -50,28 +47,13 @@ function Stat({ label, value, detail, icon, tone }: { label: string; value: stri
   );
 }
 
-export function Sidebar() {
-  const pathname = usePathname();
-  const cardClass = (active: boolean) => active
-    ? 'flex items-center justify-between rounded-lg border border-zinc-300 px-3 py-3 text-zinc-900 shadow-sm transition-[border-color,box-shadow] duration-200'
-    : 'group flex items-center justify-between rounded-lg border border-transparent px-3 py-3 text-zinc-500 transition-[border-color,color] duration-200 hover:border-zinc-300 hover:text-zinc-900';
-
-  return (
-    <aside className="fixed inset-y-0 left-0 z-20 flex h-screen w-56 flex-col border-r border-zinc-200 bg-white px-4 py-6">
-      <nav className="space-y-2" aria-label="Áreas principais">
-        <Link href="/dashboard" aria-current={pathname === '/dashboard' ? 'page' : undefined} className={cardClass(pathname === '/dashboard')}><span className="flex items-center gap-3 text-sm font-medium"><span className="flex h-7 w-7 items-center justify-center rounded-md bg-zinc-100"><PawPrint className="h-4 w-4" /></span>Início</span><ChevronRight className="h-4 w-4 text-zinc-400" /></Link>
-        <Link href={'/dashboard/cameras' as Route} aria-current={pathname.startsWith('/dashboard/cameras') ? 'page' : undefined} className={cardClass(pathname.startsWith('/dashboard/cameras'))}><span className="flex items-center gap-3 text-sm font-medium"><span className="flex h-7 w-7 items-center justify-center rounded-md bg-zinc-50"><Camera className="h-4 w-4" /></span>Câmeras</span><ChevronRight className="h-4 w-4 text-zinc-300" /></Link>
-        <Link href={'/dashboard/animals' as Route} aria-current={pathname.startsWith('/dashboard/animals') ? 'page' : undefined} className={cardClass(pathname.startsWith('/dashboard/animals'))}><span className="flex items-center gap-3 text-sm font-medium"><span className="flex h-7 w-7 items-center justify-center rounded-md bg-zinc-50"><Dog className="h-4 w-4" /></span>Animais</span><ChevronRight className="h-4 w-4 text-zinc-300" /></Link>
-      </nav>
-    </aside>
-  );
-}
-
 export default function DashboardHome() {
   const [online, setOnline] = useState(false);
   const [present, setPresent] = useState(true);
+  const [streamRunning, setStreamRunning] = useState(false);
   const [lastSeen, setLastSeen] = useState<Date | null>(mockEvents[0].time);
   const [events, setEvents] = useState<EventItem[]>(mockEvents);
+  const [engineMetrics, setEngineMetrics] = useState({ fps: 0, latencyMs: 0 });
   const [filter, setFilter] = useState<Filter>('all');
   const previousPresence = useRef(present);
   const nextId = useRef(mockEvents.length + 1);
@@ -83,11 +65,14 @@ export default function DashboardHome() {
       const data = (await response.json()) as EngineStatus;
       setOnline(true);
       setPresent(data.pet_present);
+      setStreamRunning(data.stream_running ?? false);
+      setEngineMetrics({ fps: data.fps ?? 0, latencyMs: data.latency_ms ?? 0 });
       if (data.pet_present) setLastSeen(new Date());
       if (data.pet_present !== previousPresence.current) setEvents((current) => [{ id: nextId.current++, kind: data.pet_present ? 'pet_detected' : 'pet_left', time: new Date(), message: data.pet_present ? 'Pet detected' : 'Pet left the camera frame', duration: data.pet_present ? '--' : '5 min' }, ...current]);
       previousPresence.current = data.pet_present;
     } catch {
       setOnline(false);
+      setStreamRunning(false);
     }
   }
 
@@ -102,9 +87,8 @@ export default function DashboardHome() {
   const lastEvent = events[0];
 
   return (
-    <main className="min-h-screen bg-[#f5f5f3] text-zinc-900">
-      <Sidebar />
-      <div className="min-w-0 ml-56">
+    <div className="min-h-screen text-zinc-900">
+      <div className="min-w-0">
         <div className="mx-auto max-w-[1280px] px-5 py-8 sm:px-8 lg:px-10">
           <header className="mb-8 border-b border-zinc-200 pb-7"><div className="flex items-end justify-between gap-5"><div><h1 className="text-3xl font-semibold tracking-[-0.03em] text-zinc-950">Início</h1><p className="mt-2 text-sm text-zinc-500">O estado da sua casa, em um só lugar.</p></div><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${online ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-zinc-200 bg-zinc-100 text-zinc-500'}`}><span className={`h-1.5 w-1.5 rounded-full ${online ? 'bg-emerald-500' : 'bg-zinc-400'}`} />{online ? 'Motor conectado' : 'Motor offline'}</span></div></header>
           <section className="mb-7 grid overflow-hidden rounded-xl border border-zinc-200 shadow-sm sm:grid-cols-2 xl:grid-cols-4">
@@ -114,12 +98,14 @@ export default function DashboardHome() {
             <Stat label="Sistema" value={online ? 'Online' : 'Offline'} detail={online ? 'Recebendo atualizações' : 'Inicie o motor local'} tone="text-emerald-600" icon={<Wifi className="h-4 w-4" />} />
           </section>
 
+          <section className="mb-7 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-950 shadow-sm"><div className="flex items-center justify-between border-b border-white/10 px-5 py-4"><div><h2 className="font-semibold text-white">Feed ao vivo</h2><p className="mt-1 text-xs text-zinc-500">Detecções e identificadores do ByteTrack em tempo real</p></div><span className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400"><span className={`h-1.5 w-1.5 rounded-full ${streamRunning ? 'bg-emerald-400' : 'bg-zinc-600'}`} />{streamRunning ? 'Motor conectado' : 'Aguardando stream'}</span></div><div className="relative flex aspect-video max-h-[520px] items-center justify-center overflow-hidden bg-[#10151a]">{streamRunning ? <img src={`${ENGINE_URL}/stream/video`} alt="Feed ao vivo com detecções do motor de IA" className="absolute inset-0 h-full w-full object-contain" /> : <div className="text-center"><Wifi className="mx-auto h-8 w-8 text-zinc-600" /><p className="mt-3 text-sm text-zinc-400">Inicie o monitoramento local para visualizar o feed</p></div>}<div className="absolute bottom-4 left-4 rounded-md bg-black/70 px-3 py-2 font-mono text-xs text-zinc-300">{engineMetrics.fps.toFixed(2)} FPS <span className="mx-1 text-zinc-600">|</span> {engineMetrics.latencyMs.toFixed(1)} ms</div></div></section>
+
           <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm"><div className="flex flex-col gap-4 border-b border-zinc-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-semibold text-zinc-950">Eventos recentes</h2><p className="mt-1 text-xs text-zinc-500">Eventos detectados pelo sistema</p></div><div className="flex rounded-lg border border-zinc-200 p-0.5 text-[11px]"><button type="button" onClick={() => setFilter('all')} className={`rounded-md px-2.5 py-1.5 ${filter === 'all' ? 'bg-zinc-950 text-white' : 'text-zinc-500'}`}>Tudo</button><button type="button" onClick={() => setFilter('alerts')} className={`rounded-md px-2.5 py-1.5 ${filter === 'alerts' ? 'bg-zinc-950 text-white' : 'text-zinc-500'}`}>Alertas</button></div></div><div className="grid divide-y divide-zinc-100 md:grid-cols-2 md:divide-x md:divide-y-0">{visibleEvents.map((event) => <div key={event.id} className="flex gap-3 px-5 py-4"><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${event.kind === 'pet_detected' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}><EventIcon kind={event.kind} /></div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><p className="text-sm font-medium text-zinc-800">{event.kind === 'pet_detected' ? 'Pet detectado' : 'Pet saiu do campo'}</p><time className="shrink-0 font-mono text-[10px] text-zinc-400">{event.timeLabel ?? formatClock(event.time)}</time></div><p className="mt-1 text-xs leading-5 text-zinc-500">{event.message}</p></div></div>)}{visibleEvents.length === 0 && <p className="col-span-full px-5 py-10 text-center text-sm text-zinc-500">Nenhum alerta neste período.</p>}</div><div className="border-t border-zinc-200 px-5 py-3 text-center text-[11px] text-zinc-400">Atualizado automaticamente a cada 3 segundos</div></section>
 
           <section className="mt-7 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm"><div className="border-b border-zinc-200 px-5 py-4"><h2 className="font-semibold text-zinc-950">Histórico</h2><p className="mt-1 text-xs text-zinc-500">Registros desta sessão</p></div><div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-sm"><thead className="bg-zinc-50 text-[10px] uppercase tracking-[0.14em] text-zinc-400"><tr><th className="px-5 py-3 font-semibold">Horário</th><th className="px-5 py-3 font-semibold">Evento</th><th className="px-5 py-3 font-semibold">Ausência</th><th className="px-5 py-3 font-semibold">Estado</th></tr></thead><tbody>{events.slice(0, 5).map((event) => <tr key={`history-${event.id}`} className="border-t border-zinc-100"><td className="px-5 py-3.5 font-mono text-xs text-zinc-500">{event.timeLabel ?? formatClock(event.time)}</td><td className="px-5 py-3.5 text-xs font-medium text-zinc-700">{event.kind === 'pet_detected' ? 'Pet detectado' : 'Pet saiu do campo'}</td><td className="px-5 py-3.5 text-xs text-zinc-500">{event.duration}</td><td className="px-5 py-3.5"><span className={`inline-flex items-center gap-1.5 text-xs font-medium ${event.kind === 'pet_detected' ? 'text-emerald-700' : 'text-amber-700'}`}>{event.kind === 'pet_detected' ? <Check className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}{event.kind === 'pet_detected' ? 'Seguro' : 'Aguardando'}</span></td></tr>)}</tbody></table></div></section>
           <footer className="py-6 text-xs text-zinc-400">Monitoramento local e privado</footer>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

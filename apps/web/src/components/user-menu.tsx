@@ -15,7 +15,7 @@ import { useRouter } from "next/navigation";
 
 import { authClient } from "@/lib/auth-client";
 
-export default function UserMenu() {
+export default function UserMenu({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
 
@@ -42,8 +42,8 @@ export default function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant="ghost" className="h-9 gap-2 rounded-lg px-2 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950" />}>
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-950 text-[10px] font-semibold text-white">{initials}</span>
-        <span className="hidden max-w-32 truncate text-sm font-medium sm:inline">{session.user.name}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
+        {!compact && <span className="hidden max-w-32 truncate text-sm font-medium sm:inline">{session.user.name}</span>}
+        {!compact && <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56 bg-white p-1">
         <DropdownMenuGroup>
