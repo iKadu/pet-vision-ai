@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Camera, Monitor, Play, Radio, Square, Video } from "lucide-react";
+import { Camera, Check, Monitor, Pencil, Play, Radio, Square, Trash2, Video, X } from "lucide-react";
 
 import { trpc } from "@/utils/trpc";
 
@@ -23,6 +23,7 @@ export default function CamerasPage() {
   const [message, setMessage] = useState("");
   const [changingSource, setChangingSource] = useState(false);
   const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
+  const [editingCamera, setEditingCamera] = useState<{ id: string; name: string; type: CameraType; source: string } | null>(null);
   const camerasQuery = useQuery(trpc.cameras.list.queryOptions());
   const createCamera = useMutation(
     trpc.cameras.create.mutationOptions({
@@ -30,6 +31,24 @@ export default function CamerasPage() {
         void camerasQuery.refetch();
         setCameraName("");
         setMessage("Câmera salva com sucesso.");
+      },
+    }),
+  );
+  const updateCamera = useMutation(
+    trpc.cameras.update.mutationOptions({
+      onSuccess: () => {
+        void camerasQuery.refetch();
+        setEditingCamera(null);
+        setMessage("Câmera atualizada com sucesso.");
+      },
+    }),
+  );
+  const deleteCamera = useMutation(
+    trpc.cameras.delete.mutationOptions({
+      onSuccess: (_data, variables) => {
+        void camerasQuery.refetch();
+        if (activeCameraId === variables.id) setActiveCameraId(null);
+        setMessage("Câmera excluída com sucesso.");
       },
     }),
   );
@@ -110,6 +129,25 @@ export default function CamerasPage() {
     });
   }
 
+  function saveCameraEdit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingCamera?.name.trim() || updateCamera.isPending) return;
+
+    updateCamera.mutate({
+      id: editingCamera.id,
+      data: {
+        name: editingCamera.name.trim(),
+        type: editingCamera.type,
+        source: editingCamera.source.trim(),
+      },
+    });
+  }
+
+  function removeCamera(id: string) {
+    if (deleteCamera.isPending || !window.confirm("Excluir esta câmera?")) return;
+    deleteCamera.mutate({ id });
+  }
+
   return (
     <div className="min-h-screen bg-[#f5f5f3] text-zinc-900">
       <div className="min-h-screen px-5 py-10 sm:px-8 lg:px-10">
@@ -119,7 +157,7 @@ export default function CamerasPage() {
             <section className="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-950 shadow-sm"><div className="flex items-center justify-between border-b border-white/10 px-5 py-4"><div><h2 className="font-semibold text-white">Pré-visualização</h2><p className="mt-1 text-xs text-zinc-500">{sourceLabel(source)}</p></div><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${running ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-white/10 text-zinc-500"}`}><span className={`h-1.5 w-1.5 rounded-full ${running ? "bg-emerald-400" : "bg-zinc-600"}`} />{running ? "Ao vivo" : "Pausado"}</span></div><div className="relative flex aspect-video items-center justify-center overflow-hidden bg-[#10151a]">{running ? <img src={`${ENGINE_URL}/stream/video`} alt={`Pré-visualização: ${sourceLabel(source)}`} className="absolute inset-0 h-full w-full object-cover" /> : <div className="text-center"><Video className="mx-auto h-9 w-9 text-zinc-600" /><p className="mt-4 text-sm text-zinc-400">Inicie o monitoramento para visualizar</p></div>}</div><div className="flex items-center justify-between border-t border-white/10 px-5 py-4"><span className="text-xs text-zinc-500">{message || "O vídeo é processado localmente."}</span><button type="button" onClick={() => void toggleStream()} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-200">{running ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}{running ? "Parar" : "Iniciar"}</button></div></section>
             <aside className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Fonte de vídeo</h2><p className="mt-1 text-xs leading-5 text-zinc-500">Selecione o que o motor deve analisar.</p><div className="mt-5 space-y-2"><button type="button" disabled={changingSource} onClick={() => void changeSource("webcam")} className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${source === "webcam" ? "border-zinc-900 text-zinc-900" : "border-zinc-200 text-zinc-500 hover:border-zinc-400"}`}><Camera className="h-4 w-4" /><span><span className="block text-sm font-medium">Webcam local</span><span className="block text-xs text-zinc-400">Dispositivo 0</span></span></button><button type="button" disabled={changingSource} onClick={() => void changeSource("screen")} className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${source === "screen" ? "border-zinc-900 text-zinc-900" : "border-zinc-200 text-zinc-500 hover:border-zinc-400"}`}><Monitor className="h-4 w-4" /><span><span className="block text-sm font-medium">Tela do computador</span><span className="block text-xs text-zinc-400">Captura do monitor selecionado</span></span></button><button type="button" disabled={changingSource} onClick={() => setSource("rtsp")} className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${source === "rtsp" ? "border-zinc-900 text-zinc-900" : "border-zinc-200 text-zinc-500 hover:border-zinc-400"}`}><Radio className="h-4 w-4" /><span><span className="block text-sm font-medium">Câmera IP</span><span className="block text-xs text-zinc-400">Transmissão RTSP</span></span></button>{source === "rtsp" && <div className="space-y-2 pt-2"><label htmlFor="rtsp-url" className="text-xs font-medium text-zinc-600">URL RTSP</label><input id="rtsp-url" value={rtspUrl} onChange={(event) => setRtspUrl(event.target.value)} placeholder="rtsp://usuario:senha@ip:554/stream" className="h-10 w-full rounded-lg border border-zinc-200 px-3 text-xs outline-none focus:border-zinc-500" /><button type="button" disabled={changingSource} onClick={() => void changeSource("rtsp")} className="w-full rounded-lg bg-zinc-950 px-3 py-2 text-xs font-semibold text-white hover:bg-zinc-800">{changingSource ? "Alterando..." : "Salvar fonte IP"}</button></div>}</div><form onSubmit={saveCamera} className="mt-5 border-t border-zinc-100 pt-5"><label htmlFor="camera-name" className="text-xs font-medium text-zinc-600">Nome da câmera</label><input id="camera-name" value={cameraName} onChange={(event) => setCameraName(event.target.value)} placeholder="Ex.: Sala" className="mt-2 h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500" /><button type="submit" disabled={createCamera.isPending} className="mt-3 w-full rounded-lg bg-zinc-950 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50">{createCamera.isPending ? "Salvando..." : "Salvar câmera"}</button></form></aside>
           </div>
-          {camerasQuery.isSuccess && camerasQuery.data.length > 0 && <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm"><div className="flex items-baseline justify-between gap-4"><div><h2 className="font-semibold">Câmeras salvas</h2><p className="mt-1 text-xs text-zinc-500">Fontes disponíveis para este usuário.</p></div><span className="text-xs text-zinc-400">{camerasQuery.data.length} {camerasQuery.data.length === 1 ? "câmera" : "câmeras"}</span></div><div className="mt-4 divide-y divide-zinc-100">{camerasQuery.data.map((camera) => <div key={camera.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"><div className="min-w-0"><p className="truncate text-sm font-medium text-zinc-800">{camera.name}</p><p className="mt-1 text-xs text-zinc-500">{sourceLabel(camera.type as CameraType)} · {camera.source === "0" ? "Dispositivo 0" : camera.type === "rtsp" ? "URL RTSP configurada" : "Captura de tela"}</p></div><button type="button" disabled={changingSource} onClick={() => void useSavedCamera(camera)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${activeCameraId === camera.id ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"}`}>{activeCameraId === camera.id ? "Em uso" : "Usar"}</button></div>)}</div></section>}
+          {camerasQuery.isSuccess && camerasQuery.data.length > 0 && <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm"><div className="flex items-baseline justify-between gap-4"><div><h2 className="font-semibold">Câmeras salvas</h2><p className="mt-1 text-xs text-zinc-500">Fontes disponíveis para este usuário.</p></div><span className="text-xs text-zinc-400">{camerasQuery.data.length} {camerasQuery.data.length === 1 ? "câmera" : "câmeras"}</span></div><div className="mt-4 divide-y divide-zinc-100">{camerasQuery.data.map((camera) => editingCamera?.id === camera.id ? <form key={camera.id} onSubmit={saveCameraEdit} className="space-y-2 py-3 first:pt-0 last:pb-0"><input aria-label="Nome da câmera" value={editingCamera.name} onChange={(event) => setEditingCamera({ ...editingCamera, name: event.target.value })} className="h-9 w-full rounded-lg border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500" /><div className="flex gap-2"><select aria-label="Tipo da câmera" value={editingCamera.type} onChange={(event) => setEditingCamera({ ...editingCamera, type: event.target.value as CameraType })} className="h-9 rounded-lg border border-zinc-200 bg-white px-2 text-xs"><option value="webcam">Webcam</option><option value="screen">Tela</option><option value="rtsp">RTSP</option></select><input aria-label="Origem da câmera" value={editingCamera.source} onChange={(event) => setEditingCamera({ ...editingCamera, source: event.target.value })} className="h-9 min-w-0 flex-1 rounded-lg border border-zinc-200 px-3 text-xs outline-none focus:border-zinc-500" /></div><div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingCamera(null)} className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold text-zinc-500 hover:bg-zinc-100"><X className="h-3.5 w-3.5" />Cancelar</button><button type="submit" disabled={updateCamera.isPending} className="inline-flex items-center gap-1 rounded-lg bg-zinc-950 px-3 py-2 text-xs font-semibold text-white hover:bg-zinc-800 disabled:opacity-50"><Check className="h-3.5 w-3.5" />Salvar</button></div></form> : <div key={camera.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"><div className="min-w-0"><p className="truncate text-sm font-medium text-zinc-800">{camera.name}</p><p className="mt-1 text-xs text-zinc-500">{sourceLabel(camera.type as CameraType)} · {camera.source === "0" ? "Dispositivo 0" : camera.type === "rtsp" ? "URL RTSP configurada" : "Captura de tela"}</p></div><div className="flex shrink-0 items-center gap-1"><button type="button" disabled={changingSource || deleteCamera.isPending} onClick={() => void useSavedCamera(camera)} className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${activeCameraId === camera.id ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"}`}>{activeCameraId === camera.id ? "Em uso" : "Usar"}</button><button type="button" aria-label={`Editar ${camera.name}`} onClick={() => setEditingCamera({ id: camera.id, name: camera.name, type: camera.type as CameraType, source: camera.source })} className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800"><Pencil className="h-3.5 w-3.5" /></button><button type="button" aria-label={`Excluir ${camera.name}`} onClick={() => removeCamera(camera.id)} className="rounded-lg p-2 text-zinc-400 hover:text-rose-600"><Trash2 className="h-3.5 w-3.5" /></button></div></div>)}</div></section>}
         </div>
       </div>
     </div>
