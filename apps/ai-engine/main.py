@@ -232,7 +232,15 @@ def process_stream():
                     else None
                 )
                 if isinstance(matches, list):
-                    identification_manager.apply_matches(matches, current_time)
+                    new_identifications = identification_manager.apply_matches(matches, current_time)
+                    if new_identifications:
+                        send_webhook_event(
+                            "pet_identified",
+                            {
+                                "identifications": new_identifications,
+                                "source": masked_camera_source(stream_reader.source),
+                            },
+                        )
             detections = identification_manager.enrich_detections(detections, current_time)
             latest_detections = [
                 {

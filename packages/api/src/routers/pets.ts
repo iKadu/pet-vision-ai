@@ -1,5 +1,5 @@
 import { db } from "@tccpet/db";
-import { petEmbeddings, pets } from "@tccpet/db/schema/pets";
+import { petEmbeddings, petEvents, pets } from "@tccpet/db/schema/pets";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { cosineDistance } from "drizzle-orm/sql/functions/vector";
@@ -23,6 +23,15 @@ const embeddingMatchInput = z.object({
   values: z.array(z.number().finite()).length(512),
   modelName: z.string().trim().min(1).max(150),
   pretrainedWeights: z.string().trim().min(1).max(150),
+});
+
+const identificationEventInput = z.object({
+  petId: z.string().uuid(),
+  confidence: z.number().finite().min(0).max(1),
+  details: z.object({
+    trackId: z.number().int().nonnegative(),
+    source: z.string().trim().min(1).max(500),
+  }),
 });
 
 const MINIMUM_EMBEDDING_SIMILARITY = 0.75;
@@ -152,6 +161,46 @@ export const petsRouter = router({
             ? candidate
             : null,
       };
+    }),
+
+  recordIdentificationEvent: protectedProcedure
+    .input(identificationEventInput)
+    .mutation(async ({ ctx, input }) => {
+      const [pet] = await db
+        .select({ id: pets.id })
+        .from(pets)
+        .where(
+          and(
+            eq(pets.id, input.petId),
+            eq(pets.userId, ctx.session.user.id),
+          ),
+        )
+        .limit(1);
+
+      if (!pet) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Pet não encontrado",
+        });
+      }
+
+      const [event] = await db
+        .insert(petEvents)
+        .values({
+          petId: pet.id,
+          eventType: "identification",
+          confidence: input.confidence,
+          details: input.details,
+        })
+        .returning({
+          id: petEvents.id,
+          petId: petEvents.petId,
+          eventType: petEvents.eventType,
+          confidence: petEvents.confidence,
+          createdAt: petEvents.createdAt,
+        });
+
+      return event;
     }),
 
   update: protectedProcedure

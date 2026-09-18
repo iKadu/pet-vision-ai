@@ -42,3 +42,16 @@ def test_matches_are_attached_to_their_track_detection():
     }
     assert detections[1]["identification"] == {"status": "unknown", "updated_at": 10}
     assert "identification" not in detections[2]
+
+
+def test_only_a_new_pet_association_creates_an_identification_event():
+    manager = TrackIdentificationManager()
+    thor_match = {"petId": "pet-1", "petName": "Thor", "similarity": 0.92}
+
+    first_events = manager.apply_matches([{"track_id": 7, "match": thor_match}], timestamp=10)
+    repeated_events = manager.apply_matches([{"track_id": 7, "match": thor_match}], timestamp=13)
+    unknown_events = manager.apply_matches([{"track_id": 7, "match": None}], timestamp=16)
+
+    assert first_events == [{"track_id": 7, "match": thor_match}]
+    assert repeated_events == []
+    assert unknown_events == []

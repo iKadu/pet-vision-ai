@@ -12,6 +12,7 @@ type AiWebhookPayload = {
   details?: {
     detections?: unknown[];
     identifications?: unknown;
+    source?: unknown;
   };
 };
 
@@ -20,6 +21,14 @@ const identificationInput = z.object({
   values: z.array(z.number().finite()).length(512),
   model_name: z.string().trim().min(1).max(150),
   pretrained_weights: z.string().trim().min(1).max(150),
+});
+
+const identificationEventInput = z.object({
+  track_id: z.number().int().nonnegative(),
+  match: z.object({
+    petId: z.string().uuid(),
+    similarity: z.number().finite().min(0).max(1),
+  }),
 });
 
 function hasValidSecret(received: string | null, expected: string | undefined) {
@@ -51,6 +60,38 @@ export async function POST(request: Request) {
       streamUserId,
       totalDetections: payload.details?.detections?.length ?? 0,
     };
+
+    if (payload.event_type === "pet_identified") {
+      const parsedEvents = z
+        .object({
+          source: z.string().trim().min(1).max(500),
+          identifications: z.array(identificationEventInput).min(1).max(10),
+        })
+        .safeParse(payload.details);
+      if (!parsedEvents.success) {
+        return NextResponse.json({ ok: false, error: "Invalid identification event" }, { status: 400 });
+      }
+
+      const caller = appRouter.createCaller({
+        auth: null,
+        session: { user: { id: streamUserId } },
+      } as never);
+      const events = await Promise.all(
+        parsedEvents.data.identifications.map(({ track_id, match }) =>
+          caller.pets.recordIdentificationEvent({
+            petId: match.petId,
+            confidence: match.similarity,
+            details: { trackId: track_id, source: parsedEvents.data.source },
+          }),
+        ),
+      );
+
+      console.info("[AI identification events recorded]", {
+        streamUserId,
+        totalEvents: events.length,
+      });
+      return NextResponse.json({ ...response, totalEvents: events.length });
+    }
 
     if (payload.event_type !== "pet_identification") {
       console.info("[AI detection webhook received]", {

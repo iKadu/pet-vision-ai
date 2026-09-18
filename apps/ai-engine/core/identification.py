@@ -33,9 +33,12 @@ class TrackIdentificationManager:
         self._last_requested[track_id] = now
         self._last_seen[track_id] = now
 
-    def apply_matches(self, matches: list[dict[str, Any]], timestamp: float | None = None) -> None:
+    def apply_matches(
+        self, matches: list[dict[str, Any]], timestamp: float | None = None
+    ) -> list[dict[str, Any]]:
         now = time() if timestamp is None else timestamp
         self._expire_inactive_tracks(now)
+        new_identifications: list[dict[str, Any]] = []
 
         for item in matches:
             track_id = item.get("track_id")
@@ -44,6 +47,7 @@ class TrackIdentificationManager:
 
             self._last_seen[track_id] = now
             match = item.get("match")
+            previous = self._identifications.get(track_id)
             if isinstance(match, dict):
                 self._identifications[track_id] = {
                     "status": "identified",
@@ -52,11 +56,19 @@ class TrackIdentificationManager:
                     "similarity": match.get("similarity"),
                     "updated_at": now,
                 }
-            else:
+                if (
+                    previous is None
+                    or previous.get("status") != "identified"
+                    or previous.get("pet_id") != match.get("petId")
+                ):
+                    new_identifications.append({"track_id": track_id, "match": match})
+            elif previous is None:
                 self._identifications[track_id] = {
                     "status": "unknown",
                     "updated_at": now,
                 }
+
+        return new_identifications
 
     def enrich_detections(
         self, detections: list[dict[str, Any]], timestamp: float | None = None
