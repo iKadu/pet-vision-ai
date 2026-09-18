@@ -1,5 +1,5 @@
 import { db } from "@tccpet/db";
-import { pets } from "@tccpet/db/schema/pets";
+import { petEmbeddings, pets } from "@tccpet/db/schema/pets";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import z from "zod";
@@ -8,6 +8,14 @@ import { protectedProcedure, router } from "../index";
 
 const petIdInput = z.object({
   id: z.string().uuid(),
+});
+
+const embeddingInput = z.object({
+  petId: z.string().uuid(),
+  values: z.array(z.number().finite()).length(512),
+  modelName: z.string().trim().min(1).max(150),
+  pretrainedWeights: z.string().trim().min(1).max(150),
+  sourcePhotoUrl: z.string().trim().min(1).max(500).nullable(),
 });
 
 const petFields = {
@@ -60,6 +68,48 @@ export const petsRouter = router({
         .returning();
 
       return pet;
+    }),
+
+  createEmbedding: protectedProcedure
+    .input(embeddingInput)
+    .mutation(async ({ ctx, input }) => {
+      const [pet] = await db
+        .select({ id: pets.id })
+        .from(pets)
+        .where(
+          and(
+            eq(pets.id, input.petId),
+            eq(pets.userId, ctx.session.user.id),
+          ),
+        )
+        .limit(1);
+
+      if (!pet) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Pet não encontrado",
+        });
+      }
+
+      const [embedding] = await db
+        .insert(petEmbeddings)
+        .values({
+          petId: pet.id,
+          embedding: input.values,
+          modelName: input.modelName,
+          pretrainedWeights: input.pretrainedWeights,
+          sourcePhotoUrl: input.sourcePhotoUrl,
+        })
+        .returning({
+          id: petEmbeddings.id,
+          petId: petEmbeddings.petId,
+          modelName: petEmbeddings.modelName,
+          pretrainedWeights: petEmbeddings.pretrainedWeights,
+          sourcePhotoUrl: petEmbeddings.sourcePhotoUrl,
+          createdAt: petEmbeddings.createdAt,
+        });
+
+      return embedding;
     }),
 
   update: protectedProcedure
