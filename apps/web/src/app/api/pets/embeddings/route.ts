@@ -1,7 +1,10 @@
 import { appRouter } from "@tccpet/api/routers/index";
 import { auth } from "@tccpet/auth";
-import { env } from "@tccpet/env/server";
 import { TRPCError } from "@trpc/server";
+import {
+  generatePetEmbedding,
+  PetEmbeddingEngineError,
+} from "@/lib/pet-embeddings";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
@@ -12,14 +15,6 @@ export const runtime = "nodejs";
 const requestInput = z.object({
   petId: z.string().uuid(),
   photoUrl: z.string().trim().min(1).max(500),
-});
-
-const embeddingResponse = z.object({
-  values: z.array(z.number().finite()).length(512),
-  dimensions: z.literal(512),
-  model_name: z.string().trim().min(1).max(150),
-  pretrained_weights: z.string().trim().min(1).max(150),
-  normalized: z.literal(true),
 });
 
 const contentTypes = {
@@ -72,34 +67,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Foto do pet não encontrada" }, { status: 404 });
   }
 
-  let engineResponse: Response;
+  let generatedEmbedding;
   try {
-    engineResponse = await fetch(`${env.AI_ENGINE_URL}/embeddings/image`, {
-      method: "POST",
-      headers: { "content-type": photo.contentType },
-      body: new Uint8Array(image),
-    });
-  } catch {
-    return NextResponse.json({ error: "Motor de IA indisponível" }, { status: 503 });
-  }
+    generatedEmbedding = await generatePetEmbedding(new Uint8Array(image), photo.contentType);
+  } catch (error) {
+    if (error instanceof PetEmbeddingEngineError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
 
-  if (!engineResponse.ok) {
-    return NextResponse.json({ error: "Não foi possível gerar o embedding da foto" }, { status: 502 });
-  }
-
-  const engineBody: unknown = await engineResponse.json().catch(() => null);
-  const parsedEmbedding = embeddingResponse.safeParse(engineBody);
-  if (!parsedEmbedding.success) {
-    return NextResponse.json({ error: "Resposta inválida do motor de IA" }, { status: 502 });
+    return NextResponse.json({ error: "Não foi possível gerar o embedding da foto" }, { status: 500 });
   }
 
   try {
     const caller = appRouter.createCaller({ auth: null, session });
     const embedding = await caller.pets.createEmbedding({
       petId: parsedInput.data.petId,
-      values: parsedEmbedding.data.values,
-      modelName: parsedEmbedding.data.model_name,
-      pretrainedWeights: parsedEmbedding.data.pretrained_weights,
+      values: generatedEmbedding.values,
+      modelName: generatedEmbedding.model_name,
+      pretrainedWeights: generatedEmbedding.pretrained_weights,
       sourcePhotoUrl: parsedInput.data.photoUrl,
     });
 
