@@ -79,6 +79,10 @@ class StreamSourceRequest(BaseModel):
     source: str
 
 
+class StreamStartRequest(BaseModel):
+    stream_token: str
+
+
 def masked_camera_source(source: str | int) -> str:
     """Oculta a senha da URL antes de expor a origem no endpoint de status."""
     source_text = str(source)
@@ -101,6 +105,7 @@ SECONDS_TO_CONSIDER_ABSENT = 5.0  # Tempo sem ver o pet para considerar que ele 
 last_seen_timestamp = None
 is_pet_currently_present = False
 last_tracking_webhook_timestamp = 0.0
+active_stream_token: str | None = None
 
 def send_webhook_event(event_type: str, details: dict):
     """Envia o estado do monitoramento para o Next.js."""
@@ -108,7 +113,8 @@ def send_webhook_event(event_type: str, details: dict):
         "timestamp": time.time(),
         "event_type": event_type,  # 'pet_detected' ou 'pet_left'
         "source": masked_camera_source(stream_reader.source),
-        "details": details
+        "details": details,
+        "stream_token": active_stream_token,
     }
     try:
         headers = {"x-webhook-secret": WEBHOOK_SECRET} if WEBHOOK_SECRET else {}
@@ -205,9 +211,11 @@ def get_status():
     }
 
 @app.post("/stream/start")
-def start_stream(background_tasks: BackgroundTasks):
+def start_stream(request: StreamStartRequest, background_tasks: BackgroundTasks):
+    global active_stream_token
     if stream_reader.is_running:
         return {"message": "Stream já em execução."}
+    active_stream_token = request.stream_token
     background_tasks.add_task(process_stream)
     return {"message": "Monitoramento de presença iniciado."}
 
@@ -220,7 +228,9 @@ def set_stream_source(request: StreamSourceRequest):
 
 @app.post("/stream/stop")
 def stop_stream():
+    global active_stream_token
     stream_reader.stop()
+    active_stream_token = None
     return {"message": "Monitoramento encerrado."}
 
 def video_frames():

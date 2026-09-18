@@ -1,9 +1,11 @@
 import { timingSafeEqual } from "node:crypto";
+import { getAiStreamTokenUserId } from "@/lib/ai-stream-token";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
 type AiWebhookPayload = {
+  stream_token?: string;
   details?: {
     detections?: unknown[];
   };
@@ -23,10 +25,20 @@ export async function POST(request: Request) {
   }
   try {
     const payload = (await request.json()) as AiWebhookPayload;
+    const streamUserId =
+      typeof payload.stream_token === "string"
+        ? getAiStreamTokenUserId(payload.stream_token)
+        : null;
+
+    if (!streamUserId) {
+      return NextResponse.json({ ok: false, error: "Invalid stream token" }, { status: 401 });
+    }
+
     console.info("[AI detection webhook received]", payload);
     return NextResponse.json({
       ok: true,
       receivedAt: new Date().toISOString(),
+      streamUserId,
       totalDetections: payload.details?.detections?.length ?? 0,
     });
   } catch {
