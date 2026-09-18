@@ -35,10 +35,14 @@ export const petEmbeddings = pgTable(
       .references(() => pets.id, { onDelete: "cascade" })
       .notNull(),
     embedding: vector512("embedding").notNull(),
+    modelName: text("model_name").notNull().default("legacy-unknown"),
+    pretrainedWeights: text("pretrained_weights").notNull().default("legacy-unknown"),
+    sourcePhotoUrl: text("source_photo_url"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("pet_embeddings_cosine_idx").using("hnsw", table.embedding.op("vector_cosine_ops")),
+    index("pet_embeddings_pet_id_model_idx").on(table.petId, table.modelName),
   ]
 );
 
