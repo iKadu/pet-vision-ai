@@ -3,13 +3,21 @@ import os
 import requests
 import cv2
 from pathlib import Path
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import BackgroundTasks, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from ultralytics import YOLO
 from core.detections import normalize_detections
+from core.embedding_routes import create_embedding_router
+from core.embedding_service import ImageEmbeddingService
+from core.embeddings import (
+    DEFAULT_EMBEDDING_DIMENSIONS,
+    DEFAULT_MODEL_NAME,
+    DEFAULT_PRETRAINED_WEIGHTS,
+    PetEmbeddingExtractor,
+)
 from core.stream import VideoStreamReader
 from core.tracking import TrajectoryManager
 from urllib.parse import urlsplit, urlunsplit
@@ -28,6 +36,19 @@ app.add_middleware(
 
 # Modelo YOLO
 model = YOLO("yolo11n.pt")
+
+def create_embedding_extractor() -> PetEmbeddingExtractor:
+    return PetEmbeddingExtractor(
+        model_name=os.getenv("EMBEDDING_MODEL_NAME", DEFAULT_MODEL_NAME),
+        pretrained_weights=os.getenv("EMBEDDING_PRETRAINED_WEIGHTS", DEFAULT_PRETRAINED_WEIGHTS),
+        expected_dimensions=int(
+            os.getenv("EMBEDDING_DIMENSIONS", str(DEFAULT_EMBEDDING_DIMENSIONS))
+        ),
+    )
+
+
+embedding_service = ImageEmbeddingService(create_embedding_extractor)
+app.include_router(create_embedding_router(embedding_service))
 
 # A origem pode ser um índice de webcam (ex.: "0"), "screen" ou uma URL RTSP/HTTP.
 camera_source = os.getenv("CAMERA_SOURCE", "0")
@@ -57,6 +78,7 @@ last_frame_timestamp = None
 class StreamSourceRequest(BaseModel):
     source: str
 
+
 def masked_camera_source(source: str | int) -> str:
     """Oculta a senha da URL antes de expor a origem no endpoint de status."""
     source_text = str(source)
@@ -72,6 +94,7 @@ def masked_camera_source(source: str | int) -> str:
         host = f"{host}:{parsed.port}"
     safe_netloc = f"{username}:***@{host}" if username else f"***@{host}"
     return urlunsplit((parsed.scheme, safe_netloc, parsed.path, parsed.query, parsed.fragment))
+
 
 # Configurações do Estado de Presença
 SECONDS_TO_CONSIDER_ABSENT = 5.0  # Tempo sem ver o pet para considerar que ele saiu
