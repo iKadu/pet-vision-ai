@@ -29,6 +29,10 @@ class ImageEmbeddingService:
         if bgr_image is None:
             raise ValueError("Não foi possível decodificar a imagem enviada")
 
+        return self.extract_from_bgr(bgr_image)
+
+    def extract_from_bgr(self, bgr_image: np.ndarray) -> PetEmbedding:
+        """Gera o embedding de um recorte BGR já disponível no pipeline de vídeo."""
         return self._get_extractor().extract(bgr_image)
 
     def _get_extractor(self) -> PetEmbeddingExtractor:

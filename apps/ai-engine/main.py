@@ -12,6 +12,7 @@ from ultralytics import YOLO
 from core.detections import normalize_detections
 from core.embedding_routes import create_embedding_router
 from core.embedding_service import ImageEmbeddingService
+from core.identification import TrackIdentificationManager
 from core.embeddings import (
     DEFAULT_EMBEDDING_DIMENSIONS,
     DEFAULT_MODEL_NAME,
@@ -70,6 +71,11 @@ trajectory_manager = TrajectoryManager(
     max_points=int(os.getenv("TRAJECTORY_MAX_POINTS", "120")),
     max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
 )
+identification_manager = TrackIdentificationManager(
+    min_interval_seconds=float(os.getenv("IDENTIFICATION_INTERVAL_SECONDS", "3")),
+    max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
+)
+IDENTIFICATION_MIN_CROP_SIZE = int(os.getenv("IDENTIFICATION_MIN_CROP_SIZE", "96"))
 TRACKING_WEBHOOK_INTERVAL_SECONDS = float(os.getenv("TRACKING_WEBHOOK_INTERVAL_SECONDS", "1"))
 last_processing_latency_ms = 0.0
 measured_fps = 0.0
@@ -107,7 +113,7 @@ is_pet_currently_present = False
 last_tracking_webhook_timestamp = 0.0
 active_stream_token: str | None = None
 
-def send_webhook_event(event_type: str, details: dict):
+def send_webhook_event(event_type: str, details: dict) -> dict | None:
     """Envia o estado do monitoramento para o Next.js."""
     payload = {
         "timestamp": time.time(),
@@ -120,8 +126,65 @@ def send_webhook_event(event_type: str, details: dict):
         headers = {"x-webhook-secret": WEBHOOK_SECRET} if WEBHOOK_SECRET else {}
         response = requests.post(NEXTJS_WEBHOOK_URL, json=payload, headers=headers, timeout=0.8)
         print(f"[IA Engine -> Webhook] Evento '{event_type}' enviado | Status: {response.status_code}")
+        if not response.ok:
+            return None
+        try:
+            return response.json()
+        except ValueError:
+            return None
     except requests.exceptions.RequestException as e:
         print(f"[IA Engine -> Webhook] Falha ao enviar evento: {e}")
+        return None
+
+
+def crop_detection(frame, detection: dict):
+    """Recorta a bounding box normalizada, mantendo somente o animal para o encoder."""
+    bbox = detection.get("bbox")
+    if not isinstance(bbox, dict):
+        return None
+
+    frame_height, frame_width = frame.shape[:2]
+    left = max(0, int(float(bbox["x"]) * frame_width))
+    top = max(0, int(float(bbox["y"]) * frame_height))
+    right = min(frame_width, int((float(bbox["x"]) + float(bbox["width"])) * frame_width))
+    bottom = min(frame_height, int((float(bbox["y"]) + float(bbox["height"])) * frame_height))
+    crop = frame[top:bottom, left:right]
+
+    if crop.size == 0 or min(crop.shape[:2]) < IDENTIFICATION_MIN_CROP_SIZE:
+        return None
+    return crop
+
+
+def create_identification_requests(frame, detections: list[dict], timestamp: float) -> list[dict]:
+    """Gera no máximo um embedding por track no intervalo configurado."""
+    requests_to_match: list[dict] = []
+
+    for detection in detections:
+        track_id = detection.get("track_id")
+        if not isinstance(track_id, int) or not identification_manager.is_due(track_id, timestamp):
+            continue
+
+        crop = crop_detection(frame, detection)
+        identification_manager.mark_requested(track_id, timestamp)
+        if crop is None:
+            continue
+
+        try:
+            embedding = embedding_service.extract_from_bgr(crop)
+        except (TypeError, ValueError) as error:
+            print(f"[IA Engine] Não foi possível gerar embedding do track {track_id}: {error}")
+            continue
+
+        requests_to_match.append(
+            {
+                "track_id": track_id,
+                "values": embedding.values,
+                "model_name": embedding.model_name,
+                "pretrained_weights": embedding.pretrained_weights,
+            }
+        )
+
+    return requests_to_match
 
 def process_stream():
     global last_seen_timestamp, is_pet_currently_present, last_tracking_webhook_timestamp, last_processing_latency_ms, measured_fps, last_frame_timestamp
@@ -152,6 +215,20 @@ def process_stream():
             frame_height, frame_width = frame.shape[:2]
             detections = normalize_detections(boxes, frame_width, frame_height, TARGET_CLASSES)
             detections = trajectory_manager.update(detections, current_time)
+            identification_requests = create_identification_requests(frame, detections, current_time)
+            if identification_requests:
+                identification_response = send_webhook_event(
+                    "pet_identification",
+                    {"identifications": identification_requests},
+                )
+                matches = (
+                    identification_response.get("matches")
+                    if isinstance(identification_response, dict)
+                    else None
+                )
+                if isinstance(matches, list):
+                    identification_manager.apply_matches(matches, current_time)
+            detections = identification_manager.enrich_detections(detections, current_time)
             
             pet_detected_in_frame = len(boxes) > 0
 
