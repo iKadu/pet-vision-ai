@@ -1,7 +1,7 @@
 import { db } from "@tccpet/db";
 import { petEmbeddings, petEvents, pets } from "@tccpet/db/schema/pets";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { cosineDistance } from "drizzle-orm/sql/functions/vector";
 import z from "zod";
 
@@ -35,6 +35,7 @@ const identificationEventInput = z.object({
 });
 
 const MINIMUM_EMBEDDING_SIMILARITY = 0.75;
+const MAX_PET_EMBEDDING_REFERENCES = 5;
 
 const petFields = {
   name: z.string().trim().min(1).max(100),
@@ -109,6 +110,18 @@ export const petsRouter = router({
         });
       }
 
+      const [embeddingCount] = await db
+        .select({ count: count() })
+        .from(petEmbeddings)
+        .where(eq(petEmbeddings.petId, pet.id));
+
+      if ((embeddingCount?.count ?? 0) >= MAX_PET_EMBEDDING_REFERENCES) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cada pet pode ter até ${MAX_PET_EMBEDDING_REFERENCES} fotos de referência`,
+        });
+      }
+
       const [embedding] = await db
         .insert(petEmbeddings)
         .values({
@@ -129,6 +142,20 @@ export const petsRouter = router({
 
       return embedding;
     }),
+
+  listEmbeddingReferences: protectedProcedure.query(async ({ ctx }) => {
+    return db
+      .select({
+        id: petEmbeddings.id,
+        petId: petEmbeddings.petId,
+        sourcePhotoUrl: petEmbeddings.sourcePhotoUrl,
+        createdAt: petEmbeddings.createdAt,
+      })
+      .from(petEmbeddings)
+      .innerJoin(pets, eq(petEmbeddings.petId, pets.id))
+      .where(eq(pets.userId, ctx.session.user.id))
+      .orderBy(desc(petEmbeddings.createdAt));
+  }),
 
   findSimilarEmbedding: protectedProcedure
     .input(embeddingMatchInput)
