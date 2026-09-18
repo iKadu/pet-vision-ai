@@ -112,6 +112,9 @@ last_seen_timestamp = None
 is_pet_currently_present = False
 last_tracking_webhook_timestamp = 0.0
 active_stream_token: str | None = None
+latest_detections: list[dict] = []
+latest_frame_width = 0
+latest_frame_height = 0
 
 def send_webhook_event(event_type: str, details: dict) -> dict | None:
     """Envia o estado do monitoramento para o Next.js."""
@@ -187,7 +190,7 @@ def create_identification_requests(frame, detections: list[dict], timestamp: flo
     return requests_to_match
 
 def process_stream():
-    global last_seen_timestamp, is_pet_currently_present, last_tracking_webhook_timestamp, last_processing_latency_ms, measured_fps, last_frame_timestamp
+    global last_seen_timestamp, is_pet_currently_present, last_tracking_webhook_timestamp, last_processing_latency_ms, measured_fps, last_frame_timestamp, latest_detections, latest_frame_width, latest_frame_height
     
     try:
         stream_reader.start()
@@ -213,6 +216,8 @@ def process_stream():
             last_processing_latency_ms = round((time.perf_counter() - inference_started) * 1000, 1)
             boxes = results[0].boxes
             frame_height, frame_width = frame.shape[:2]
+            latest_frame_width = frame_width
+            latest_frame_height = frame_height
             detections = normalize_detections(boxes, frame_width, frame_height, TARGET_CLASSES)
             detections = trajectory_manager.update(detections, current_time)
             identification_requests = create_identification_requests(frame, detections, current_time)
@@ -229,6 +234,14 @@ def process_stream():
                 if isinstance(matches, list):
                     identification_manager.apply_matches(matches, current_time)
             detections = identification_manager.enrich_detections(detections, current_time)
+            latest_detections = [
+                {
+                    key: detection[key]
+                    for key in ("track_id", "bbox", "identification")
+                    if key in detection
+                }
+                for detection in detections
+            ]
             
             pet_detected_in_frame = len(boxes) > 0
 
@@ -285,6 +298,9 @@ def get_status():
         "stream_running": stream_reader.is_running,
         "fps": measured_fps,
         "latency_ms": last_processing_latency_ms,
+        "detections": latest_detections,
+        "frame_width": latest_frame_width,
+        "frame_height": latest_frame_height,
     }
 
 @app.post("/stream/start")
@@ -305,9 +321,12 @@ def set_stream_source(request: StreamSourceRequest):
 
 @app.post("/stream/stop")
 def stop_stream():
-    global active_stream_token
+    global active_stream_token, latest_detections, latest_frame_width, latest_frame_height
     stream_reader.stop()
     active_stream_token = None
+    latest_detections = []
+    latest_frame_width = 0
+    latest_frame_height = 0
     return {"message": "Monitoramento encerrado."}
 
 def video_frames():
