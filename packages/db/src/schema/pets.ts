@@ -3,9 +3,15 @@ import { pgTable, text, timestamp, uuid, customType, doublePrecision, jsonb, ind
 import { user } from "./auth";
 
 // Tipo customizado para suportar o vetor de 512 dimensões (Re-ID)
-const vector512 = customType<{ data: number[] }>({
+const vector512 = customType<{ data: number[]; driverData: string }>({
   dataType() {
     return "vector(512)";
+  },
+  toDriver(value) {
+    return `[${value.join(",")}]`;
+  },
+  fromDriver(value) {
+    return JSON.parse(value) as number[];
   },
 });
 
