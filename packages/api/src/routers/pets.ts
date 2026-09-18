@@ -1,5 +1,6 @@
 import { db } from "@tccpet/db";
 import { petEmbeddings, petEvents, pets } from "@tccpet/db/schema/pets";
+import { env } from "@tccpet/env/server";
 import { TRPCError } from "@trpc/server";
 import { and, count, desc, eq, sql } from "drizzle-orm";
 import { cosineDistance } from "drizzle-orm/sql/functions/vector";
@@ -23,6 +24,7 @@ const embeddingMatchInput = z.object({
   values: z.array(z.number().finite()).length(512),
   modelName: z.string().trim().min(1).max(150),
   pretrainedWeights: z.string().trim().min(1).max(150),
+  species: z.enum(["dog", "cat"]).optional(),
 });
 
 const identificationEventInput = z.object({
@@ -34,7 +36,7 @@ const identificationEventInput = z.object({
   }),
 });
 
-const MINIMUM_EMBEDDING_SIMILARITY = 0.75;
+const MINIMUM_EMBEDDING_SIMILARITY = env.PET_MATCH_MIN_SIMILARITY;
 const MAX_PET_EMBEDDING_REFERENCES = 5;
 
 const petFields = {
@@ -161,6 +163,15 @@ export const petsRouter = router({
     .input(embeddingMatchInput)
     .query(async ({ ctx, input }) => {
       const distance = cosineDistance(petEmbeddings.embedding, input.values);
+      const conditions = [
+        eq(pets.userId, ctx.session.user.id),
+        eq(petEmbeddings.modelName, input.modelName),
+        eq(petEmbeddings.pretrainedWeights, input.pretrainedWeights),
+      ];
+      if (input.species) {
+        conditions.push(eq(pets.species, input.species));
+      }
+
       const [candidate] = await db
         .select({
           petId: pets.id,
@@ -171,13 +182,7 @@ export const petsRouter = router({
         })
         .from(petEmbeddings)
         .innerJoin(pets, eq(petEmbeddings.petId, pets.id))
-        .where(
-          and(
-            eq(pets.userId, ctx.session.user.id),
-            eq(petEmbeddings.modelName, input.modelName),
-            eq(petEmbeddings.pretrainedWeights, input.pretrainedWeights),
-          ),
-        )
+        .where(and(...conditions))
         .orderBy(distance)
         .limit(1);
 

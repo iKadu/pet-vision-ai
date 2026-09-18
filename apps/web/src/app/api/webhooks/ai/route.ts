@@ -21,6 +21,7 @@ const identificationInput = z.object({
   values: z.array(z.number().finite()).length(512),
   model_name: z.string().trim().min(1).max(150),
   pretrained_weights: z.string().trim().min(1).max(150),
+  species: z.enum(["dog", "cat"]).optional(),
 });
 
 const identificationEventInput = z.object({
@@ -121,6 +122,7 @@ export async function POST(request: Request) {
           values: identification.values,
           modelName: identification.model_name,
           pretrainedWeights: identification.pretrained_weights,
+          species: identification.species,
         });
 
         return { track_id: identification.track_id, match: result.match };

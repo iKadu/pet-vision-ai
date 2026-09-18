@@ -184,6 +184,7 @@ def create_identification_requests(frame, detections: list[dict], timestamp: flo
                 "values": embedding.values,
                 "model_name": embedding.model_name,
                 "pretrained_weights": embedding.pretrained_weights,
+                "species": detection.get("class_name"),
             }
         )
 
