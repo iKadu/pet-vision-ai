@@ -19,7 +19,8 @@
     "db:start": "turbo run db:start -F @tccpet/db --",
     "db:watch": "turbo run db:watch -F @tccpet/db --",
     "db:stop": "turbo run db:stop -F @tccpet/db --",
-    "db:down": "turbo run db:down -F @tccpet/db --"
+    "db:down": "turbo run db:down -F @tccpet/db --",
+    "evaluate:identification": "tsx scripts/evaluate-pet-identification.ts"
   },
   "dependencies": {
     "@tccpet/env": "*",
