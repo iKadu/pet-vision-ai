@@ -115,6 +115,53 @@ active_stream_token: str | None = None
 latest_detections: list[dict] = []
 latest_frame_width = 0
 latest_frame_height = 0
+recent_events: list[dict] = []
+next_event_id = 1
+current_presence_event_id: int | None = None
+last_identified_pet_names: list[str] = []
+
+
+def record_monitoring_event(event_type: str, message: str, **details) -> dict:
+    """Mantém as transições de presença disponíveis para qualquer tela do painel."""
+    global next_event_id
+    event = {
+        "id": next_event_id,
+        "kind": event_type,
+        "timestamp": time.time(),
+        "message": message,
+        **details,
+    }
+    recent_events.insert(0, event)
+    next_event_id += 1
+    # O histórico em memória é suficiente para a sessão e evita crescimento sem limite.
+    del recent_events[100:]
+    return event
+
+
+def identified_pet_names(detections: list[dict]) -> list[str]:
+    """Obtém nomes únicos já reconhecidos no frame atual."""
+    return list(
+        dict.fromkeys(
+            identification.get("pet_name")
+            for detection in detections
+            if isinstance((identification := detection.get("identification")), dict)
+            and identification.get("status") == "identified"
+            and isinstance(identification.get("pet_name"), str)
+            and identification["pet_name"].strip()
+        )
+    )
+
+
+def detected_message(pet_names: list[str]) -> str:
+    if not pet_names:
+        return "Pet detectado no campo da câmera"
+    return f"{', '.join(pet_names)} detectado{'s' if len(pet_names) > 1 else ''} no campo da câmera"
+
+
+def left_message(pet_names: list[str]) -> str:
+    if not pet_names:
+        return "Pet não está mais visível pela câmera"
+    return f"{', '.join(pet_names)} não {'está' if len(pet_names) == 1 else 'estão'} mais visíve{'l' if len(pet_names) == 1 else 'is'} pela câmera"
 
 def send_webhook_event(event_type: str, details: dict) -> dict | None:
     """Envia o estado do monitoramento para o Next.js."""
@@ -191,7 +238,7 @@ def create_identification_requests(frame, detections: list[dict], timestamp: flo
     return requests_to_match
 
 def process_stream():
-    global last_seen_timestamp, is_pet_currently_present, last_tracking_webhook_timestamp, last_processing_latency_ms, measured_fps, last_frame_timestamp, latest_detections, latest_frame_width, latest_frame_height
+    global last_seen_timestamp, is_pet_currently_present, last_tracking_webhook_timestamp, last_processing_latency_ms, measured_fps, last_frame_timestamp, latest_detections, latest_frame_width, latest_frame_height, current_presence_event_id, last_identified_pet_names
     
     try:
         stream_reader.start()
@@ -251,6 +298,9 @@ def process_stream():
                 }
                 for detection in detections
             ]
+            pet_names = identified_pet_names(detections)
+            if pet_names:
+                last_identified_pet_names = pet_names
             
             pet_detected_in_frame = len(boxes) > 0
 
@@ -260,6 +310,20 @@ def process_stream():
                 # Transição de estado: Estava ausente e AGORA apareceu
                 if not is_pet_currently_present:
                     is_pet_currently_present = True
+                    event = record_monitoring_event(
+                        "pet_detected",
+                        detected_message(pet_names),
+                        total_pets=len(detections),
+                        pet_names=pet_names,
+                    )
+                    current_presence_event_id = event["id"]
+                elif pet_names and current_presence_event_id is not None:
+                    # A identificação pode concluir alguns frames após a primeira detecção.
+                    for event in recent_events:
+                        if event["id"] == current_presence_event_id:
+                            event["pet_names"] = pet_names
+                            event["message"] = detected_message(pet_names)
+                            break
                     send_webhook_event("pet_detected", {
                         "message": "Pet identificado no ambiente",
                         "total_pets": len(detections),
@@ -286,6 +350,14 @@ def process_stream():
                     # Transição de estado: Passou do tempo limite sem ver o animal
                     if time_since_last_seen >= SECONDS_TO_CONSIDER_ABSENT:
                         is_pet_currently_present = False
+                        record_monitoring_event(
+                            "pet_left",
+                            left_message(last_identified_pet_names),
+                            absent_duration_seconds=round(time_since_last_seen, 1),
+                            pet_names=last_identified_pet_names,
+                        )
+                        current_presence_event_id = None
+                        last_identified_pet_names = []
                         send_webhook_event("pet_left", {
                             "message": "Pet não é mais identificado na imagem",
                             "absent_duration_seconds": round(time_since_last_seen, 1)
@@ -302,6 +374,7 @@ def get_status():
     return {
         "status": "online",
         "pet_present": is_pet_currently_present,
+        "last_seen": last_seen_timestamp,
         "sampling_rate": f"{stream_reader.target_fps} FPS"
         ,"camera_source": masked_camera_source(stream_reader.source),
         "stream_running": stream_reader.is_running,
@@ -310,6 +383,7 @@ def get_status():
         "detections": latest_detections,
         "frame_width": latest_frame_width,
         "frame_height": latest_frame_height,
+        "recent_events": recent_events,
     }
 
 @app.post("/stream/start")

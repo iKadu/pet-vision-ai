@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Camera,
   Check,
@@ -31,6 +31,7 @@ type StreamDetection = {
 };
 
 type StreamStatus = {
+  stream_running: boolean;
   detections: StreamDetection[];
   frame_width: number;
   frame_height: number;
@@ -97,6 +98,34 @@ export default function CamerasPage() {
     refetchInterval: running ? 1000 : false,
     retry: false,
   });
+
+  // O motor continua processando fora do ciclo de vida desta página. Ao voltar
+  // para a aba, recuperamos o estado real em vez de assumir que foi pausado.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function synchronizeStreamState() {
+      try {
+        const response = await fetch(`${ENGINE_URL}/status`, { cache: "no-store" });
+        if (!response.ok) throw new Error("Estado do motor indisponível");
+        const status = (await response.json()) as StreamStatus;
+        if (!cancelled) setRunning(Boolean(status.stream_running));
+      } catch {
+        if (!cancelled) setRunning(false);
+      }
+    }
+
+    void synchronizeStreamState();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (streamStatusQuery.data) {
+      setRunning(Boolean(streamStatusQuery.data.stream_running));
+    }
+  }, [streamStatusQuery.data]);
   const streamDetections = streamStatusQuery.data?.detections ?? [];
   const frameWidth = streamStatusQuery.data?.frame_width || 16;
   const frameHeight = streamStatusQuery.data?.frame_height || 9;
