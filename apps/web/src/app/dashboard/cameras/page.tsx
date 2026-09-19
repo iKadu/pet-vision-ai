@@ -42,17 +42,33 @@ function sourceLabel(source: CameraType) {
   return "Câmera IP";
 }
 
-function identificationLabel(detection: StreamDetection) {
+function identificationDisplay(detection: StreamDetection) {
   if (detection.identification?.status === "identified") {
-    const confidence = detection.identification.similarity
-      ? ` · ${Math.round(detection.identification.similarity * 100)}%`
-      : "";
-    return `${detection.identification.pet_name ?? "Pet"}${confidence}`;
+    return {
+      accent: "#2dd4bf",
+      name: detection.identification.pet_name ?? "Pet cadastrado",
+      status: "Identificado",
+      detail: detection.identification.similarity
+        ? `Confiança ${Math.round(detection.identification.similarity * 100)}%`
+        : "Correspondência confirmada",
+    };
   }
 
-  return detection.identification?.status === "unknown"
-    ? "Não identificado"
-    : "Analisando";
+  if (detection.identification?.status === "unknown") {
+    return {
+      accent: "#fbbf24",
+      name: "Nome: —",
+      status: "Não identificado",
+      detail: "Sem referência compatível",
+    };
+  }
+
+  return {
+    accent: "#93c5fd",
+    name: "Buscando referência",
+    status: "Analisando",
+    detail: "Aguardando confirmação",
+  };
 }
 
 export default function CamerasPage() {
@@ -315,39 +331,107 @@ export default function CamerasPage() {
                       preserveAspectRatio="xMidYMid slice"
                     >
                       {streamDetections.map((detection, index) => {
-                        const identified = detection.identification?.status === "identified";
-                        const color = identified ? "#5eead4" : "#fbbf24";
-                        const label = identificationLabel(detection);
+                        const display = identificationDisplay(detection);
+                        const boxX = detection.bbox.x * frameWidth;
+                        const boxY = detection.bbox.y * frameHeight;
+                        const boxWidth = detection.bbox.width * frameWidth;
+                        const boxHeight = detection.bbox.height * frameHeight;
+                        const labelHeight = Math.min(
+                          Math.max(frameHeight * 0.12, 66),
+                          86,
+                        );
+                        const labelWidth = Math.min(
+                          Math.max(174, 132 + display.name.length * 6),
+                          Math.max(174, frameWidth - 8),
+                        );
+                        const labelX = Math.min(
+                          Math.max(4, boxX),
+                          Math.max(4, frameWidth - labelWidth - 4),
+                        );
+                        const labelY =
+                          boxY - labelHeight - 8 >= 4
+                            ? boxY - labelHeight - 8
+                            : Math.min(boxY + 6, frameHeight - labelHeight - 4);
+                        const statusFontSize = Math.min(
+                          Math.max(frameHeight * 0.018, 10),
+                          14,
+                        );
+                        const nameFontSize = Math.min(
+                          Math.max(frameHeight * 0.028, 14),
+                          20,
+                        );
+                        const detailFontSize = Math.min(
+                          Math.max(frameHeight * 0.018, 10),
+                          14,
+                        );
 
                         return (
                           <g key={detection.track_id ?? index}>
                             <rect
-                              x={detection.bbox.x * frameWidth}
-                              y={detection.bbox.y * frameHeight}
-                              width={detection.bbox.width * frameWidth}
-                              height={detection.bbox.height * frameHeight}
-                              fill="none"
-                              stroke={color}
-                              strokeWidth="3"
+                              x={boxX}
+                              y={boxY}
+                              width={boxWidth}
+                              height={boxHeight}
+                              rx="7"
+                              fill={display.accent}
+                              fillOpacity="0.08"
+                              stroke="#09090b"
+                              strokeOpacity="0.9"
+                              strokeWidth="7"
                               vectorEffect="non-scaling-stroke"
                             />
                             <rect
-                              x={detection.bbox.x * frameWidth}
-                              y={detection.bbox.y * frameHeight}
-                              width={frameWidth * 0.34}
-                              height={frameHeight * 0.06}
-                              rx={frameHeight * 0.01}
+                              x={boxX}
+                              y={boxY}
+                              width={boxWidth}
+                              height={boxHeight}
+                              rx="7"
+                              fill="none"
+                              stroke={display.accent}
+                              strokeWidth="2.5"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                            <rect
+                              x={labelX}
+                              y={labelY}
+                              width={labelWidth}
+                              height={labelHeight}
+                              rx="8"
                               fill="#09090b"
-                              fillOpacity="0.86"
+                              fillOpacity="0.94"
+                              stroke={display.accent}
+                              strokeOpacity="0.55"
+                              strokeWidth="1"
                             />
                             <text
-                              x={(detection.bbox.x + 0.014) * frameWidth}
-                              y={(detection.bbox.y + 0.039) * frameHeight}
-                              fill={color}
-                              fontSize={frameHeight * 0.031}
+                              x={labelX + 14}
+                              y={labelY + 19}
+                              fill={display.accent}
+                              fontSize={statusFontSize}
                               fontWeight="600"
+                              letterSpacing="0.8"
                             >
-                              {label}
+                              {display.status.toUpperCase()}
+                            </text>
+                            <text
+                              x={labelX + 14}
+                              y={labelY + 42}
+                              fill="#ffffff"
+                              fontSize={nameFontSize}
+                              fontWeight="700"
+                            >
+                              {display.status === "Identificado"
+                                ? `Nome: ${display.name}`
+                                : display.name}
+                            </text>
+                            <text
+                              x={labelX + 14}
+                              y={labelY + labelHeight - 12}
+                              fill="#a1a1aa"
+                              fontSize={detailFontSize}
+                              fontWeight="500"
+                            >
+                              {display.detail}
                             </text>
                           </g>
                         );
