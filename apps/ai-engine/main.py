@@ -19,7 +19,7 @@ from core.embeddings import (
     DEFAULT_PRETRAINED_WEIGHTS,
     PetEmbeddingExtractor,
 )
-from core.stream import VideoStreamReader, parse_target_fps
+from core.stream import VideoStreamReader, parse_preview_fps, parse_target_fps
 from core.tracking import TrajectoryManager
 from urllib.parse import urlsplit, urlunsplit
 
@@ -54,9 +54,11 @@ app.include_router(create_embedding_router(embedding_service))
 # A origem pode ser um índice de webcam (ex.: "0"), "screen" ou uma URL RTSP/HTTP.
 camera_source = os.getenv("CAMERA_SOURCE", "0")
 STREAM_TARGET_FPS = parse_target_fps(os.getenv("STREAM_TARGET_FPS"))
+STREAM_PREVIEW_FPS = parse_preview_fps(os.getenv("STREAM_PREVIEW_FPS"))
 stream_reader = VideoStreamReader(
     source=camera_source,
     target_fps=STREAM_TARGET_FPS,
+    preview_fps=STREAM_PREVIEW_FPS,
     screen_monitor=int(os.getenv("SCREEN_MONITOR", "1")),
     screen_region=os.getenv("SCREEN_REGION"),
 )
@@ -382,6 +384,8 @@ def get_status():
         "last_seen": last_seen_timestamp,
         "sampling_rate": f"{stream_reader.target_fps} FPS",
         "target_fps": stream_reader.target_fps,
+        "preview_fps": stream_reader.preview_fps,
+        "capture_fps": stream_reader.capture_fps,
         "camera_source": masked_camera_source(stream_reader.source),
         "stream_running": stream_reader.is_running,
         "fps": measured_fps,
@@ -428,14 +432,17 @@ def stop_stream():
     return {"message": "Monitoramento encerrado."}
 
 def video_frames():
-    while True:
-        frame = stream_reader.get_latest_frame()
-        if frame is not None:
+    last_sequence = -1
+    waiting_for_start_until = time.monotonic() + 5
+    while stream_reader.is_running or time.monotonic() < waiting_for_start_until:
+        frame, sequence = stream_reader.get_latest_frame_with_sequence()
+        if frame is not None and sequence != last_sequence:
             success, encoded_frame = cv2.imencode(".jpg", frame)
             if success:
+                last_sequence = sequence
                 yield (b"--frame\r\n"
                        b"Content-Type: image/jpeg\r\n\r\n" + encoded_frame.tobytes() + b"\r\n")
-        time.sleep(0.1)
+        time.sleep(0.001)
 
 @app.get("/stream/video")
 def stream_video():

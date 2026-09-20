@@ -37,6 +37,8 @@ type StreamStatus = {
   frame_width: number;
   frame_height: number;
   target_fps: number;
+  preview_fps: number;
+  capture_fps: number;
   fps: number;
   latency_ms: number;
   cycle_latency_ms: number;
@@ -153,6 +155,7 @@ export default function CamerasPage() {
   const frameWidth = streamStatusQuery.data?.frame_width || 16;
   const frameHeight = streamStatusQuery.data?.frame_height || 9;
   const targetFps = streamStatusQuery.data?.target_fps ?? 2;
+  const captureFps = streamStatusQuery.data?.capture_fps ?? 0;
   const measuredFps = streamStatusQuery.data?.fps ?? 0;
   const cycleLatency = streamStatusQuery.data?.cycle_latency_ms ?? 0;
   const identifiedCount = streamDetections.filter(
@@ -513,7 +516,15 @@ export default function CamerasPage() {
                     >
                       <div className="px-2.5 py-2">
                         <dt className="text-[10px] font-medium uppercase tracking-[0.08em] text-zinc-500">
-                          Alvo
+                          Vídeo
+                        </dt>
+                        <dd className="mt-0.5 font-semibold tabular-nums text-zinc-100">
+                          {captureFps > 0 ? `${captureFps.toFixed(1)} FPS` : "—"}
+                        </dd>
+                      </div>
+                      <div className="px-2.5 py-2">
+                        <dt className="text-[10px] font-medium uppercase tracking-[0.08em] text-zinc-500">
+                          IA alvo
                         </dt>
                         <dd className="mt-0.5 font-semibold tabular-nums text-zinc-100">
                           {targetFps.toFixed(1)} FPS
