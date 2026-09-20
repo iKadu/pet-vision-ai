@@ -1,14 +1,36 @@
 import cv2
+import math
 import numpy as np
 import time
 from threading import Lock
 from typing import Generator, Optional
 
+
+DEFAULT_TARGET_FPS = 2.0
+MIN_TARGET_FPS = 0.5
+MAX_TARGET_FPS = 30.0
+
+
+def parse_target_fps(value: str | float | int | None) -> float:
+    """Valida a amostragem configurada para o processamento do stream."""
+    if value is None:
+        return DEFAULT_TARGET_FPS
+
+    try:
+        target_fps = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError("STREAM_TARGET_FPS deve ser um número entre 0.5 e 30") from error
+
+    if not math.isfinite(target_fps) or not MIN_TARGET_FPS <= target_fps <= MAX_TARGET_FPS:
+        raise ValueError("STREAM_TARGET_FPS deve ser um número entre 0.5 e 30")
+    return target_fps
+
+
 class VideoStreamReader:
     def __init__(
         self,
         source: str | int = 0,
-        target_fps: float = 2.0,
+        target_fps: float = DEFAULT_TARGET_FPS,
         reconnect_delay: float = 2.0,
         screen_monitor: int = 1,
         screen_region: str | None = None,
@@ -19,8 +41,8 @@ class VideoStreamReader:
         :param reconnect_delay: Tempo entre tentativas de reconexão, em segundos.
         """
         self.source = self._normalize_source(source)
-        self.target_fps = target_fps
-        self.frame_interval = 1.0 / target_fps
+        self.target_fps = parse_target_fps(target_fps)
+        self.frame_interval = 1.0 / self.target_fps
         self.reconnect_delay = reconnect_delay
         self.screen_monitor = screen_monitor
         self.screen_region = self._parse_screen_region(screen_region)

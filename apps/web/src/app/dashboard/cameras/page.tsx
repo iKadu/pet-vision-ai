@@ -18,6 +18,7 @@ import {
 import { trpc } from "@/utils/trpc";
 
 const ENGINE_URL = "http://localhost:8000";
+const ENGINE_REQUEST_TIMEOUT_MS = 5_000;
 type CameraType = "webcam" | "screen" | "rtsp";
 
 type StreamDetection = {
@@ -35,6 +36,10 @@ type StreamStatus = {
   detections: StreamDetection[];
   frame_width: number;
   frame_height: number;
+  target_fps: number;
+  fps: number;
+  latency_ms: number;
+  cycle_latency_ms: number;
 };
 
 function sourceLabel(source: CameraType) {
@@ -72,11 +77,29 @@ function identificationDisplay(detection: StreamDetection) {
   };
 }
 
+async function fetchEngine(path: string, init?: RequestInit) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    ENGINE_REQUEST_TIMEOUT_MS,
+  );
+
+  try {
+    return await fetch(`${ENGINE_URL}${path}`, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 export default function CamerasPage() {
   const [source, setSource] = useState<CameraType>("webcam");
   const [rtspUrl, setRtspUrl] = useState("");
   const [cameraName, setCameraName] = useState("");
   const [running, setRunning] = useState(false);
+  const [isTogglingStream, setIsTogglingStream] = useState(false);
   const [message, setMessage] = useState("");
   const [changingSource, setChangingSource] = useState(false);
   const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
@@ -90,7 +113,7 @@ export default function CamerasPage() {
   const streamStatusQuery = useQuery({
     queryKey: ["ai-stream-status"],
     queryFn: async (): Promise<StreamStatus> => {
-      const response = await fetch(`${ENGINE_URL}/status`);
+      const response = await fetchEngine("/status");
       if (!response.ok) throw new Error("Não foi possível obter o estado do monitoramento");
       return response.json() as Promise<StreamStatus>;
     },
@@ -106,7 +129,7 @@ export default function CamerasPage() {
 
     async function synchronizeStreamState() {
       try {
-        const response = await fetch(`${ENGINE_URL}/status`, { cache: "no-store" });
+        const response = await fetchEngine("/status", { cache: "no-store" });
         if (!response.ok) throw new Error("Estado do motor indisponível");
         const status = (await response.json()) as StreamStatus;
         if (!cancelled) setRunning(Boolean(status.stream_running));
@@ -129,6 +152,9 @@ export default function CamerasPage() {
   const streamDetections = streamStatusQuery.data?.detections ?? [];
   const frameWidth = streamStatusQuery.data?.frame_width || 16;
   const frameHeight = streamStatusQuery.data?.frame_height || 9;
+  const targetFps = streamStatusQuery.data?.target_fps ?? 2;
+  const measuredFps = streamStatusQuery.data?.fps ?? 0;
+  const cycleLatency = streamStatusQuery.data?.cycle_latency_ms ?? 0;
   const identifiedCount = streamDetections.filter(
     (detection) => detection.identification?.status === "identified",
   ).length;
@@ -185,13 +211,13 @@ export default function CamerasPage() {
     setChangingSource(true);
     try {
       if (running) {
-        const stopResponse = await fetch(`${ENGINE_URL}/stream/stop`, {
+        const stopResponse = await fetchEngine("/stream/stop", {
           method: "POST",
         });
         if (!stopResponse.ok)
           throw new Error("Não foi possível parar a fonte atual");
       }
-      const response = await fetch(`${ENGINE_URL}/stream/source`, {
+      const response = await fetchEngine("/stream/source", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source: sourceValue }),
@@ -215,8 +241,9 @@ export default function CamerasPage() {
   }
 
   async function toggleStream() {
-    if (changingSource) return;
+    if (changingSource || isTogglingStream) return;
     const action = running ? "stop" : "start";
+    setIsTogglingStream(true);
     try {
       const tokenResponse =
         action === "start"
@@ -231,7 +258,7 @@ export default function CamerasPage() {
         );
       }
 
-      const response = await fetch(`${ENGINE_URL}/stream/${action}`, {
+      const response = await fetchEngine(`/stream/${action}`, {
         method: "POST",
         headers:
           action === "start"
@@ -251,7 +278,11 @@ export default function CamerasPage() {
           : "Monitoramento pausado.",
       );
     } catch {
-      setMessage("Não foi possível conectar ao motor local.");
+      setMessage(
+        "O motor local não respondeu. Verifique se o AI Engine está ativo.",
+      );
+    } finally {
+      setIsTogglingStream(false);
     }
   }
 
@@ -476,6 +507,35 @@ export default function CamerasPage() {
                           ? "Aguardando animal"
                           : `${identifiedCount} identificado${identifiedCount === 1 ? "" : "s"} · ${streamDetections.length} detectado${streamDetections.length === 1 ? "" : "s"}`}
                     </div>
+                    <dl
+                      aria-label="Desempenho do monitoramento"
+                      className="pointer-events-none absolute bottom-3 right-3 flex divide-x divide-white/10 overflow-hidden rounded-md border border-white/10 bg-black/70 text-xs shadow-lg shadow-black/20 backdrop-blur-sm"
+                    >
+                      <div className="px-2.5 py-2">
+                        <dt className="text-[10px] font-medium uppercase tracking-[0.08em] text-zinc-500">
+                          Alvo
+                        </dt>
+                        <dd className="mt-0.5 font-semibold tabular-nums text-zinc-100">
+                          {targetFps.toFixed(1)} FPS
+                        </dd>
+                      </div>
+                      <div className="px-2.5 py-2">
+                        <dt className="text-[10px] font-medium uppercase tracking-[0.08em] text-zinc-500">
+                          Real
+                        </dt>
+                        <dd className="mt-0.5 font-semibold tabular-nums text-zinc-100">
+                          {measuredFps > 0 ? `${measuredFps.toFixed(1)} FPS` : "—"}
+                        </dd>
+                      </div>
+                      <div className="px-2.5 py-2">
+                        <dt className="text-[10px] font-medium uppercase tracking-[0.08em] text-zinc-500">
+                          Ciclo
+                        </dt>
+                        <dd className="mt-0.5 font-semibold tabular-nums text-zinc-100">
+                          {cycleLatency > 0 ? `${Math.round(cycleLatency)} ms` : "—"}
+                        </dd>
+                      </div>
+                    </dl>
                   </>
                 ) : (
                   <div className="text-center">
@@ -493,14 +553,21 @@ export default function CamerasPage() {
                 <button
                   type="button"
                   onClick={() => void toggleStream()}
-                  className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-200"
+                  disabled={changingSource || isTogglingStream}
+                  className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {running ? (
                     <Square className="h-4 w-4" />
                   ) : (
                     <Play className="h-4 w-4 fill-current" />
                   )}
-                  {running ? "Parar" : "Iniciar"}
+                  {isTogglingStream
+                    ? running
+                      ? "Parando..."
+                      : "Conectando..."
+                    : running
+                      ? "Parar"
+                      : "Iniciar"}
                 </button>
               </div>
             </section>

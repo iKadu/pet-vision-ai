@@ -19,7 +19,7 @@ from core.embeddings import (
     DEFAULT_PRETRAINED_WEIGHTS,
     PetEmbeddingExtractor,
 )
-from core.stream import VideoStreamReader
+from core.stream import VideoStreamReader, parse_target_fps
 from core.tracking import TrajectoryManager
 from urllib.parse import urlsplit, urlunsplit
 
@@ -53,9 +53,10 @@ app.include_router(create_embedding_router(embedding_service))
 
 # A origem pode ser um índice de webcam (ex.: "0"), "screen" ou uma URL RTSP/HTTP.
 camera_source = os.getenv("CAMERA_SOURCE", "0")
+STREAM_TARGET_FPS = parse_target_fps(os.getenv("STREAM_TARGET_FPS"))
 stream_reader = VideoStreamReader(
     source=camera_source,
-    target_fps=2.0,
+    target_fps=STREAM_TARGET_FPS,
     screen_monitor=int(os.getenv("SCREEN_MONITOR", "1")),
     screen_region=os.getenv("SCREEN_REGION"),
 )
@@ -78,6 +79,7 @@ identification_manager = TrackIdentificationManager(
 IDENTIFICATION_MIN_CROP_SIZE = int(os.getenv("IDENTIFICATION_MIN_CROP_SIZE", "96"))
 TRACKING_WEBHOOK_INTERVAL_SECONDS = float(os.getenv("TRACKING_WEBHOOK_INTERVAL_SECONDS", "1"))
 last_processing_latency_ms = 0.0
+last_cycle_latency_ms = 0.0
 measured_fps = 0.0
 last_frame_timestamp = None
 
@@ -238,11 +240,12 @@ def create_identification_requests(frame, detections: list[dict], timestamp: flo
     return requests_to_match
 
 def process_stream():
-    global last_seen_timestamp, is_pet_currently_present, last_tracking_webhook_timestamp, last_processing_latency_ms, measured_fps, last_frame_timestamp, latest_detections, latest_frame_width, latest_frame_height, current_presence_event_id, last_identified_pet_names
+    global last_seen_timestamp, is_pet_currently_present, last_tracking_webhook_timestamp, last_processing_latency_ms, last_cycle_latency_ms, measured_fps, last_frame_timestamp, latest_detections, latest_frame_width, latest_frame_height, current_presence_event_id, last_identified_pet_names
     
     try:
         stream_reader.start()
         for frame in stream_reader.read_sampled_frames():
+            cycle_started = time.perf_counter()
             current_time = time.time()
             if last_frame_timestamp is not None:
                 frame_delta = current_time - last_frame_timestamp
@@ -364,6 +367,8 @@ def process_stream():
                         })
                         print(f"[IA Engine] ALERTA: Pet saiu do campo de visão da câmera!")
 
+            last_cycle_latency_ms = round((time.perf_counter() - cycle_started) * 1000, 1)
+
     except Exception as e:
         print(f"[IA Engine] Erro no processamento: {e}")
     finally:
@@ -375,11 +380,13 @@ def get_status():
         "status": "online",
         "pet_present": is_pet_currently_present,
         "last_seen": last_seen_timestamp,
-        "sampling_rate": f"{stream_reader.target_fps} FPS"
-        ,"camera_source": masked_camera_source(stream_reader.source),
+        "sampling_rate": f"{stream_reader.target_fps} FPS",
+        "target_fps": stream_reader.target_fps,
+        "camera_source": masked_camera_source(stream_reader.source),
         "stream_running": stream_reader.is_running,
         "fps": measured_fps,
         "latency_ms": last_processing_latency_ms,
+        "cycle_latency_ms": last_cycle_latency_ms,
         "detections": latest_detections,
         "frame_width": latest_frame_width,
         "frame_height": latest_frame_height,
@@ -388,10 +395,14 @@ def get_status():
 
 @app.post("/stream/start")
 def start_stream(request: StreamStartRequest, background_tasks: BackgroundTasks):
-    global active_stream_token
+    global active_stream_token, last_cycle_latency_ms, last_frame_timestamp, last_processing_latency_ms, measured_fps
     if stream_reader.is_running:
         return {"message": "Stream já em execução."}
     active_stream_token = request.stream_token
+    last_processing_latency_ms = 0.0
+    last_cycle_latency_ms = 0.0
+    measured_fps = 0.0
+    last_frame_timestamp = None
     background_tasks.add_task(process_stream)
     return {"message": "Monitoramento de presença iniciado."}
 
@@ -404,12 +415,16 @@ def set_stream_source(request: StreamSourceRequest):
 
 @app.post("/stream/stop")
 def stop_stream():
-    global active_stream_token, latest_detections, latest_frame_width, latest_frame_height
+    global active_stream_token, last_cycle_latency_ms, last_frame_timestamp, last_processing_latency_ms, latest_detections, latest_frame_width, latest_frame_height, measured_fps
     stream_reader.stop()
     active_stream_token = None
     latest_detections = []
     latest_frame_width = 0
     latest_frame_height = 0
+    last_processing_latency_ms = 0.0
+    last_cycle_latency_ms = 0.0
+    measured_fps = 0.0
+    last_frame_timestamp = None
     return {"message": "Monitoramento encerrado."}
 
 def video_frames():
