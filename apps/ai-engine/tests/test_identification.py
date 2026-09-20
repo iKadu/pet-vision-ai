@@ -55,3 +55,20 @@ def test_only_a_new_pet_association_creates_an_identification_event():
     assert first_events == [{"track_id": 7, "match": thor_match}]
     assert repeated_events == []
     assert unknown_events == []
+
+
+def test_single_conflicting_match_does_not_replace_a_stable_identity():
+    manager = TrackIdentificationManager()
+    thor = {"petId": "pet-1", "petName": "Thor", "similarity": 0.92}
+    luna = {"petId": "pet-2", "petName": "Luna", "similarity": 0.89}
+
+    manager.apply_matches([{"track_id": 7, "match": thor}], timestamp=10)
+    manager.apply_matches([{"track_id": 7, "match": luna}], timestamp=11)
+    after_one_conflict = manager.enrich_detections([{"track_id": 7}], timestamp=11)[0]
+
+    assert after_one_conflict["identification"]["pet_name"] == "Thor"
+
+    manager.apply_matches([{"track_id": 7, "match": luna}], timestamp=12)
+    after_two_conflicts = manager.enrich_detections([{"track_id": 7}], timestamp=12)[0]
+
+    assert after_two_conflicts["identification"]["pet_name"] == "Luna"

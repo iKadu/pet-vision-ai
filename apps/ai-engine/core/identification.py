@@ -20,6 +20,7 @@ class TrackIdentificationManager:
         self._last_requested: dict[int, float] = {}
         self._last_seen: dict[int, float] = {}
         self._identifications: dict[int, dict[str, Any]] = {}
+        self._pending_replacements: dict[int, dict[str, Any]] = {}
 
     def is_due(self, track_id: int, timestamp: float | None = None) -> bool:
         now = time() if timestamp is None else timestamp
@@ -49,6 +50,28 @@ class TrackIdentificationManager:
             match = item.get("match")
             previous = self._identifications.get(track_id)
             if isinstance(match, dict):
+                # Um track normalmente representa o mesmo animal durante sua vida.
+                # Se uma leitura isolada apontar para outro pet, conservamos a
+                # associação já exibida até que a nova hipótese seja repetida.
+                # Isso impede que o nome no overlay alterne por ruído do embedding.
+                if (
+                    previous is not None
+                    and previous.get("status") == "identified"
+                    and previous.get("pet_id") != match.get("petId")
+                ):
+                    pending = self._pending_replacements.get(track_id)
+                    if pending and pending.get("pet_id") == match.get("petId"):
+                        pending["count"] += 1
+                    else:
+                        self._pending_replacements[track_id] = {
+                            "pet_id": match.get("petId"),
+                            "count": 1,
+                        }
+
+                    if self._pending_replacements[track_id]["count"] < 2:
+                        continue
+
+                self._pending_replacements.pop(track_id, None)
                 self._identifications[track_id] = {
                     "status": "identified",
                     "pet_id": match.get("petId"),
@@ -63,6 +86,7 @@ class TrackIdentificationManager:
                 ):
                     new_identifications.append({"track_id": track_id, "match": match})
             elif previous is None:
+                self._pending_replacements.pop(track_id, None)
                 self._identifications[track_id] = {
                     "status": "unknown",
                     "updated_at": now,
@@ -99,3 +123,4 @@ class TrackIdentificationManager:
             self._last_seen.pop(track_id, None)
             self._last_requested.pop(track_id, None)
             self._identifications.pop(track_id, None)
+            self._pending_replacements.pop(track_id, None)

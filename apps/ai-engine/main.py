@@ -75,7 +75,7 @@ trajectory_manager = TrajectoryManager(
     max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
 )
 identification_manager = TrackIdentificationManager(
-    min_interval_seconds=float(os.getenv("IDENTIFICATION_INTERVAL_SECONDS", "3")),
+    min_interval_seconds=float(os.getenv("IDENTIFICATION_INTERVAL_SECONDS", "1")),
     max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
 )
 IDENTIFICATION_MIN_CROP_SIZE = int(os.getenv("IDENTIFICATION_MIN_CROP_SIZE", "96"))
@@ -192,16 +192,25 @@ def send_webhook_event(event_type: str, details: dict) -> dict | None:
 
 
 def crop_detection(frame, detection: dict):
-    """Recorta a bounding box normalizada, mantendo somente o animal para o encoder."""
+    """Recorta o animal com uma margem pequena para preservar seu contexto visual."""
     bbox = detection.get("bbox")
     if not isinstance(bbox, dict):
         return None
 
     frame_height, frame_width = frame.shape[:2]
-    left = max(0, int(float(bbox["x"]) * frame_width))
-    top = max(0, int(float(bbox["y"]) * frame_height))
-    right = min(frame_width, int((float(bbox["x"]) + float(bbox["width"])) * frame_width))
-    bottom = min(frame_height, int((float(bbox["y"]) + float(bbox["height"])) * frame_height))
+    padding_ratio = float(os.getenv("IDENTIFICATION_CROP_PADDING", "0.08"))
+    padding_x = float(bbox["width"]) * padding_ratio
+    padding_y = float(bbox["height"]) * padding_ratio
+    left = max(0, int((float(bbox["x"]) - padding_x) * frame_width))
+    top = max(0, int((float(bbox["y"]) - padding_y) * frame_height))
+    right = min(
+        frame_width,
+        int((float(bbox["x"]) + float(bbox["width"]) + padding_x) * frame_width),
+    )
+    bottom = min(
+        frame_height,
+        int((float(bbox["y"]) + float(bbox["height"]) + padding_y) * frame_height),
+    )
     crop = frame[top:bottom, left:right]
 
     if crop.size == 0 or min(crop.shape[:2]) < IDENTIFICATION_MIN_CROP_SIZE:
@@ -219,9 +228,10 @@ def create_identification_requests(frame, detections: list[dict], timestamp: flo
             continue
 
         crop = crop_detection(frame, detection)
-        identification_manager.mark_requested(track_id, timestamp)
         if crop is None:
             continue
+
+        identification_manager.mark_requested(track_id, timestamp)
 
         try:
             embedding = embedding_service.extract_from_bgr(crop)

@@ -120,7 +120,9 @@ export default function CamerasPage() {
       return response.json() as Promise<StreamStatus>;
     },
     enabled: running,
-    refetchInterval: running ? 1000 : false,
+    // O vídeo chega continuamente, mas a camada SVG precisa acompanhar os
+    // resultados do tracking em uma cadência mais curta que um segundo.
+    refetchInterval: running ? 250 : false,
     retry: false,
   });
 
@@ -427,6 +429,10 @@ export default function CamerasPage() {
                           Math.max(frameHeight * 0.018, 10),
                           14,
                         );
+                        const overlayTransition = {
+                          transition:
+                            "x 180ms cubic-bezier(0.16, 1, 0.3, 1), y 180ms cubic-bezier(0.16, 1, 0.3, 1), width 180ms cubic-bezier(0.16, 1, 0.3, 1), height 180ms cubic-bezier(0.16, 1, 0.3, 1)",
+                        };
 
                         return (
                           <g key={detection.track_id ?? index}>
@@ -442,6 +448,7 @@ export default function CamerasPage() {
                               strokeOpacity="0.9"
                               strokeWidth="7"
                               vectorEffect="non-scaling-stroke"
+                              style={overlayTransition}
                             />
                             <rect
                               x={boxX}
@@ -453,6 +460,7 @@ export default function CamerasPage() {
                               stroke={display.accent}
                               strokeWidth="2.5"
                               vectorEffect="non-scaling-stroke"
+                              style={overlayTransition}
                             />
                             <rect
                               x={labelX}
@@ -465,6 +473,7 @@ export default function CamerasPage() {
                               stroke={display.accent}
                               strokeOpacity="0.55"
                               strokeWidth="1"
+                              style={overlayTransition}
                             />
                             <text
                               x={labelX + 14}
