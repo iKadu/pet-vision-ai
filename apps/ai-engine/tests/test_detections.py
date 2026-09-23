@@ -1,6 +1,6 @@
 import unittest
 
-from core.detections import normalize_detections
+from core.detections import normalize_detections, suppress_overlapping_detections
 
 
 class Value:
@@ -46,6 +46,17 @@ class NormalizeDetectionsTests(unittest.TestCase):
 
         self.assertEqual(result[0]["bbox"], {"x": 0.0, "y": 0.277778, "width": 1.0, "height": 0.722222})
         self.assertEqual(result[0]["centroid"], {"x": 0.5, "y": 0.638889})
+
+    def test_suppresses_overlapping_detections_of_the_same_species(self):
+        detections = [
+            {"class_id": 16, "confidence": 0.95, "bbox": {"x": 0.2, "y": 0.2, "width": 0.4, "height": 0.4}},
+            {"class_id": 16, "confidence": 0.82, "bbox": {"x": 0.22, "y": 0.22, "width": 0.4, "height": 0.4}},
+            {"class_id": 15, "confidence": 0.9, "bbox": {"x": 0.22, "y": 0.22, "width": 0.4, "height": 0.4}},
+        ]
+
+        result = suppress_overlapping_detections(detections)
+
+        self.assertEqual(result, [detections[0], detections[2]])
 
 
 if __name__ == "__main__":

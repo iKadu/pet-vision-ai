@@ -125,7 +125,14 @@ export async function POST(request: Request) {
           species: identification.species,
         });
 
-        return { track_id: identification.track_id, match: result.match };
+        const attachMargin = <T extends { similarity: number } | null>(candidate: T) =>
+          candidate ? { ...candidate, margin: result.margin } : null;
+
+        return {
+          track_id: identification.track_id,
+          match: attachMargin(result.match),
+          possible_match: attachMargin(result.possibleMatch),
+        };
       }),
     );
 

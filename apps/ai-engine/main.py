@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from ultralytics import YOLO
-from core.detections import normalize_detections
+from core.detections import normalize_detections, suppress_overlapping_detections
 from core.embedding_routes import create_embedding_router
 from core.embedding_service import ImageEmbeddingService
 from core.identification import TrackIdentificationManager
@@ -79,6 +79,9 @@ identification_manager = TrackIdentificationManager(
     max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
 )
 IDENTIFICATION_MIN_CROP_SIZE = int(os.getenv("IDENTIFICATION_MIN_CROP_SIZE", "96"))
+DETECTION_DUPLICATE_IOU_THRESHOLD = float(
+    os.getenv("DETECTION_DUPLICATE_IOU_THRESHOLD", "0.7")
+)
 TRACKING_WEBHOOK_INTERVAL_SECONDS = float(os.getenv("TRACKING_WEBHOOK_INTERVAL_SECONDS", "1"))
 last_processing_latency_ms = 0.0
 last_cycle_latency_ms = 0.0
@@ -282,6 +285,9 @@ def process_stream():
             latest_frame_width = frame_width
             latest_frame_height = frame_height
             detections = normalize_detections(boxes, frame_width, frame_height, TARGET_CLASSES)
+            detections = suppress_overlapping_detections(
+                detections, DETECTION_DUPLICATE_IOU_THRESHOLD
+            )
             detections = trajectory_manager.update(detections, current_time)
             identification_requests = create_identification_requests(frame, detections, current_time)
             if identification_requests:

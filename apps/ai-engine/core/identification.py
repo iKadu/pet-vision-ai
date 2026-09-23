@@ -9,18 +9,26 @@ from typing import Any
 class TrackIdentificationManager:
     """Evita extrair e consultar embeddings a cada frame para o mesmo animal."""
 
-    def __init__(self, min_interval_seconds: float = 3.0, max_idle_seconds: float = 30.0):
+    def __init__(
+        self,
+        min_interval_seconds: float = 3.0,
+        max_idle_seconds: float = 30.0,
+        required_confirmations: int = 2,
+    ):
         if min_interval_seconds <= 0:
             raise ValueError("min_interval_seconds deve ser maior que zero")
         if max_idle_seconds <= 0:
             raise ValueError("max_idle_seconds deve ser maior que zero")
+        if required_confirmations <= 0:
+            raise ValueError("required_confirmations deve ser maior que zero")
 
         self.min_interval_seconds = min_interval_seconds
         self.max_idle_seconds = max_idle_seconds
+        self.required_confirmations = required_confirmations
         self._last_requested: dict[int, float] = {}
         self._last_seen: dict[int, float] = {}
         self._identifications: dict[int, dict[str, Any]] = {}
-        self._pending_replacements: dict[int, dict[str, Any]] = {}
+        self._pending_confirmations: dict[int, dict[str, Any]] = {}
 
     def is_due(self, track_id: int, timestamp: float | None = None) -> bool:
         now = time() if timestamp is None else timestamp
@@ -48,51 +56,64 @@ class TrackIdentificationManager:
 
             self._last_seen[track_id] = now
             match = item.get("match")
+            possible_match = item.get("possible_match")
             previous = self._identifications.get(track_id)
             if isinstance(match, dict):
-                # Um track normalmente representa o mesmo animal durante sua vida.
-                # Se uma leitura isolada apontar para outro pet, conservamos a
-                # associação já exibida até que a nova hipótese seja repetida.
-                # Isso impede que o nome no overlay alterne por ruído do embedding.
-                if (
-                    previous is not None
-                    and previous.get("status") == "identified"
-                    and previous.get("pet_id") != match.get("petId")
-                ):
-                    pending = self._pending_replacements.get(track_id)
-                    if pending and pending.get("pet_id") == match.get("petId"):
-                        pending["count"] += 1
-                    else:
-                        self._pending_replacements[track_id] = {
-                            "pet_id": match.get("petId"),
-                            "count": 1,
-                        }
+                pending = self._pending_confirmations.get(track_id)
+                if pending and pending.get("pet_id") == match.get("petId"):
+                    pending["count"] += 1
+                elif previous and previous.get("pet_id") == match.get("petId"):
+                    pending = {"pet_id": match.get("petId"), "count": self.required_confirmations}
+                else:
+                    pending = {"pet_id": match.get("petId"), "count": 1}
+                self._pending_confirmations[track_id] = pending
 
-                    if self._pending_replacements[track_id]["count"] < 2:
-                        continue
+                if pending["count"] < self.required_confirmations:
+                    if previous is None or previous.get("status") != "identified":
+                        self._identifications[track_id] = self._format_identification(
+                            "confirming", match, now
+                        )
+                    continue
 
-                self._pending_replacements.pop(track_id, None)
-                self._identifications[track_id] = {
-                    "status": "identified",
-                    "pet_id": match.get("petId"),
-                    "pet_name": match.get("petName"),
-                    "similarity": match.get("similarity"),
-                    "updated_at": now,
-                }
+                self._pending_confirmations.pop(track_id, None)
+                self._identifications[track_id] = self._format_identification(
+                    "identified",
+                    match,
+                    now,
+                )
                 if (
                     previous is None
                     or previous.get("status") != "identified"
                     or previous.get("pet_id") != match.get("petId")
                 ):
                     new_identifications.append({"track_id": track_id, "match": match})
+            elif isinstance(possible_match, dict):
+                self._pending_confirmations.pop(track_id, None)
+                if previous is None or previous.get("status") != "identified":
+                    self._identifications[track_id] = self._format_identification(
+                        "possible", possible_match, now
+                    )
             elif previous is None:
-                self._pending_replacements.pop(track_id, None)
+                self._pending_confirmations.pop(track_id, None)
                 self._identifications[track_id] = {
                     "status": "unknown",
                     "updated_at": now,
                 }
 
         return new_identifications
+
+    @staticmethod
+    def _format_identification(status: str, match: dict[str, Any], now: float) -> dict[str, Any]:
+        identification = {
+            "status": status,
+            "pet_id": match.get("petId"),
+            "pet_name": match.get("petName"),
+            "similarity": match.get("similarity"),
+            "updated_at": now,
+        }
+        if "margin" in match:
+            identification["margin"] = match.get("margin")
+        return identification
 
     def enrich_detections(
         self, detections: list[dict[str, Any]], timestamp: float | None = None
@@ -123,4 +144,4 @@ class TrackIdentificationManager:
             self._last_seen.pop(track_id, None)
             self._last_requested.pop(track_id, None)
             self._identifications.pop(track_id, None)
-            self._pending_replacements.pop(track_id, None)
+            self._pending_confirmations.pop(track_id, None)

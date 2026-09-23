@@ -23,6 +23,36 @@ def calculate_centroid(bbox: dict[str, float]) -> dict[str, float]:
     }
 
 
+def intersection_over_union(first: dict[str, float], second: dict[str, float]) -> float:
+    """Calcula IoU para caixas normalizadas no formato x, y, width, height."""
+    left = max(first["x"], second["x"])
+    top = max(first["y"], second["y"])
+    right = min(first["x"] + first["width"], second["x"] + second["width"])
+    bottom = min(first["y"] + first["height"], second["y"] + second["height"])
+    intersection = max(0.0, right - left) * max(0.0, bottom - top)
+    union = first["width"] * first["height"] + second["width"] * second["height"] - intersection
+    return intersection / union if union > 0 else 0.0
+
+
+def suppress_overlapping_detections(
+    detections: list[dict[str, Any]], iou_threshold: float = 0.7
+) -> list[dict[str, Any]]:
+    """Mantém a caixa mais confiante quando a mesma espécie é detectada duas vezes."""
+    if not 0 < iou_threshold <= 1:
+        raise ValueError("O limiar de IoU deve estar entre 0 e 1")
+
+    kept: list[dict[str, Any]] = []
+    for detection in sorted(detections, key=lambda item: item["confidence"], reverse=True):
+        duplicated = any(
+            detection["class_id"] == kept_detection["class_id"]
+            and intersection_over_union(detection["bbox"], kept_detection["bbox"]) >= iou_threshold
+            for kept_detection in kept
+        )
+        if not duplicated:
+            kept.append(detection)
+    return kept
+
+
 def normalize_detections(
     boxes: Iterable[Any], frame_width: int, frame_height: int, class_names: dict[int, str]
 ) -> list[dict[str, Any]]:

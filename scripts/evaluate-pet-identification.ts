@@ -25,6 +25,8 @@ type EvaluationResult = {
   bestNegativeSimilarity: number | null;
   positiveSimilarity: number;
   topSimilarity: number;
+  runnerUpSimilarity: number | null;
+  decisionMargin: number | null;
 };
 
 function cosineSimilarity(left: number[], right: number[]) {
@@ -93,6 +95,7 @@ for (const query of samples) {
 
   const rankedPets = [...bestPerPet.entries()].sort((left, right) => right[1] - left[1]);
   const [predictedPetId, topSimilarity] = rankedPets[0]!;
+  const runnerUpSimilarity = rankedPets[1]?.[1] ?? null;
   const positiveSimilarity = bestPerPet.get(query.petId)!;
   const bestNegativeSimilarity = Math.max(
     ...rankedPets
@@ -105,6 +108,11 @@ for (const query of samples) {
     predictedPetId,
     positiveSimilarity,
     topSimilarity,
+    runnerUpSimilarity,
+    decisionMargin:
+      runnerUpSimilarity === null
+        ? null
+        : Number((topSimilarity - runnerUpSimilarity).toFixed(4)),
     bestNegativeSimilarity: Number.isFinite(bestNegativeSimilarity)
       ? bestNegativeSimilarity
       : null,
@@ -120,6 +128,17 @@ const negativeScores = results
   .filter((score): score is number => score !== null);
 const weakestPositive = positiveScores.length ? Math.min(...positiveScores) : null;
 const strongestNegative = negativeScores.length ? Math.max(...negativeScores) : null;
+const correctMargins = correct
+  .map((result) => result.decisionMargin)
+  .filter((margin): margin is number => margin !== null);
+const incorrectMargins = results
+  .filter((result) => result.actualPetId !== result.predictedPetId)
+  .map((result) => result.decisionMargin)
+  .filter((margin): margin is number => margin !== null);
+const weakestCorrectMargin = correctMargins.length ? Math.min(...correctMargins) : null;
+const strongestIncorrectMargin = incorrectMargins.length
+  ? Math.max(...incorrectMargins)
+  : null;
 
 console.log("\nAvaliação leave-one-out de identificação de pets");
 console.log(`Amostras válidas: ${samples.length}`);
@@ -134,6 +153,15 @@ if (results.length === 0) {
   console.log(`Similaridade positiva mediana: ${formatScore(median(positiveScores))}`);
   console.log(`Menor similaridade positiva: ${formatScore(weakestPositive)}`);
   console.log(`Maior similaridade negativa: ${formatScore(strongestNegative)}`);
+  console.log(
+    `Margem mediana nos acertos: ${formatScore(
+      correctMargins.length ? median(correctMargins) : null,
+    )}`,
+  );
+  console.log(`Menor margem nos acertos: ${formatScore(weakestCorrectMargin)}`);
+  if (strongestIncorrectMargin !== null) {
+    console.log(`Maior margem em erro Top-1: ${formatScore(strongestIncorrectMargin)}`);
+  }
 
   if (weakestPositive !== null && strongestNegative !== null) {
     if (strongestNegative < weakestPositive) {
@@ -147,6 +175,21 @@ if (results.length === 0) {
   } else {
     console.log(
       "Adicione ao menos dois pets da mesma espécie para medir falsos positivos e sugerir um limiar.",
+    );
+  }
+
+  if (weakestCorrectMargin !== null && strongestIncorrectMargin !== null) {
+    if (strongestIncorrectMargin < weakestCorrectMargin) {
+      const suggestedMargin = (strongestIncorrectMargin + weakestCorrectMargin) / 2;
+      console.log(`Margem inicial sugerida: ${suggestedMargin.toFixed(3)}`);
+    } else {
+      console.log(
+        "A margem ainda não separa todos os acertos dos erros. Mantenha casos ambíguos como possíveis identificações.",
+      );
+    }
+  } else if (weakestCorrectMargin !== null) {
+    console.log(
+      "Ainda não há erros Top-1 para calibrar a margem; use o valor inicial conservador e amplie a base de teste.",
     );
   }
 }

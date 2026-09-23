@@ -37,7 +37,9 @@ const identificationEventInput = z.object({
 });
 
 const MINIMUM_EMBEDDING_SIMILARITY = env.PET_MATCH_MIN_SIMILARITY;
+const MINIMUM_EMBEDDING_MARGIN = env.PET_MATCH_MIN_MARGIN;
 const MAX_PET_EMBEDDING_REFERENCES = 5;
+const MAX_EMBEDDING_CANDIDATES = 50;
 
 const petFields = {
   name: z.string().trim().min(1).max(100),
@@ -172,7 +174,7 @@ export const petsRouter = router({
         conditions.push(eq(pets.species, input.species));
       }
 
-      const [candidate] = await db
+      const embeddingCandidates = await db
         .select({
           petId: pets.id,
           petName: pets.name,
@@ -184,14 +186,37 @@ export const petsRouter = router({
         .innerJoin(pets, eq(petEmbeddings.petId, pets.id))
         .where(and(...conditions))
         .orderBy(distance)
-        .limit(1);
+        .limit(MAX_EMBEDDING_CANDIDATES);
+
+      // Um pet pode ter até cinco fotos de referência. Para medir ambiguidade,
+      // comparamos o melhor embedding de cada pet, e não duas fotos do mesmo pet.
+      const candidatesByPet = new Map<string, (typeof embeddingCandidates)[number]>();
+      for (const candidate of embeddingCandidates) {
+        if (!candidatesByPet.has(candidate.petId)) {
+          candidatesByPet.set(candidate.petId, candidate);
+        }
+      }
+      const [candidate, runnerUp] = [...candidatesByPet.values()];
+      const margin =
+        candidate && runnerUp
+          ? Number((candidate.similarity - runnerUp.similarity).toFixed(4))
+          : null;
+      const hasSimilarity = Boolean(
+        candidate && candidate.similarity >= MINIMUM_EMBEDDING_SIMILARITY,
+      );
+      const hasSafeMargin =
+        margin === null || margin >= MINIMUM_EMBEDDING_MARGIN;
+      const match = hasSimilarity && hasSafeMargin ? candidate : null;
+      const possibleMatch = hasSimilarity && !hasSafeMargin ? candidate : null;
 
       return {
         threshold: MINIMUM_EMBEDDING_SIMILARITY,
-        match:
-          candidate && candidate.similarity >= MINIMUM_EMBEDDING_SIMILARITY
-            ? candidate
-            : null,
+        marginThreshold: MINIMUM_EMBEDDING_MARGIN,
+        margin,
+        candidate: candidate ?? null,
+        runnerUp: runnerUp ?? null,
+        match,
+        possibleMatch,
       };
     }),
 

@@ -25,9 +25,10 @@ type StreamDetection = {
   track_id?: number;
   bbox: { x: number; y: number; width: number; height: number };
   identification?: {
-    status: "identified" | "unknown";
+    status: "identified" | "confirming" | "possible" | "unknown";
     pet_name?: string;
     similarity?: number;
+    margin?: number;
   };
 };
 
@@ -51,14 +52,38 @@ function sourceLabel(source: CameraType) {
 }
 
 function identificationDisplay(detection: StreamDetection) {
+  const evidence = (identification: StreamDetection["identification"]) => {
+    if (!identification?.similarity) return "Evidência visual indisponível";
+    const similarity = `Similaridade ${Math.round(identification.similarity * 100)}%`;
+    return typeof identification.margin === "number"
+      ? `${similarity} · margem +${Math.round(identification.margin * 100)} pts`
+      : similarity;
+  };
+
   if (detection.identification?.status === "identified") {
     return {
       accent: "#2dd4bf",
       name: detection.identification.pet_name ?? "Pet cadastrado",
       status: "Identificado",
-      detail: detection.identification.similarity
-        ? `Confiança ${Math.round(detection.identification.similarity * 100)}%`
-        : "Correspondência confirmada",
+      detail: evidence(detection.identification),
+    };
+  }
+
+  if (detection.identification?.status === "confirming") {
+    return {
+      accent: "#93c5fd",
+      name: detection.identification.pet_name ?? "Pet candidato",
+      status: "Confirmando identidade",
+      detail: "Aguardando nova leitura consistente",
+    };
+  }
+
+  if (detection.identification?.status === "possible") {
+    return {
+      accent: "#fbbf24",
+      name: detection.identification.pet_name ?? "Pet candidato",
+      status: "Possível identificação",
+      detail: `${evidence(detection.identification)} · margem insuficiente`,
     };
   }
 
@@ -162,6 +187,11 @@ export default function CamerasPage() {
   const cycleLatency = streamStatusQuery.data?.cycle_latency_ms ?? 0;
   const identifiedCount = streamDetections.filter(
     (detection) => detection.identification?.status === "identified",
+  ).length;
+  const pendingIdentificationCount = streamDetections.filter(
+    (detection) =>
+      detection.identification?.status === "confirming" ||
+      detection.identification?.status === "possible",
   ).length;
   const createCamera = useMutation(
     trpc.cameras.create.mutationOptions({
@@ -517,7 +547,7 @@ export default function CamerasPage() {
                         ? "Aguardando dados de identificação"
                         : streamDetections.length === 0
                           ? "Aguardando animal"
-                          : `${identifiedCount} identificado${identifiedCount === 1 ? "" : "s"} · ${streamDetections.length} detectado${streamDetections.length === 1 ? "" : "s"}`}
+                          : `${identifiedCount} confirmado${identifiedCount === 1 ? "" : "s"}${pendingIdentificationCount ? ` · ${pendingIdentificationCount} em análise` : ""} · ${streamDetections.length} detectado${streamDetections.length === 1 ? "" : "s"}`}
                     </div>
                     <dl
                       aria-label="Desempenho do monitoramento"
