@@ -53,11 +53,16 @@ export const petEmbeddings = pgTable(
 );
 
 // 3. Tabela de Eventos e Logs de Visão Computacional
-export const petEvents = pgTable("pet_events", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  petId: uuid("pet_id").references(() => pets.id, { onDelete: "set null" }),
-  eventType: text("event_type").notNull(), // 'detection', 'zone_alert', 'inactivity'
-  confidence: doublePrecision("confidence"),
-  details: jsonb("details"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const petEvents = pgTable(
+  "pet_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    petId: uuid("pet_id").references(() => pets.id, { onDelete: "set null" }),
+    eventType: text("event_type").notNull(),
+    confidence: doublePrecision("confidence"),
+    details: jsonb("details").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("pet_events_user_created_idx").on(table.userId, table.createdAt)],
+);

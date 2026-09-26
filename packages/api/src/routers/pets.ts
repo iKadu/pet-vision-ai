@@ -2,7 +2,7 @@ import { db } from "@tccpet/db";
 import { petEmbeddings, petEvents, pets } from "@tccpet/db/schema/pets";
 import { env } from "@tccpet/env/server";
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { cosineDistance } from "drizzle-orm/sql/functions/vector";
 import z from "zod";
 
@@ -34,6 +34,14 @@ const identificationEventInput = z.object({
     trackId: z.number().int().nonnegative(),
     source: z.string().trim().min(1).max(500),
   }),
+});
+
+const monitoringEventTypes = ["identification", "detection", "metrics", "activity_changed", "zone_entered", "zone_exited"] as const;
+const monitoringEventInput = z.object({
+  petId: z.string().uuid().nullable().optional(),
+  eventType: z.enum(monitoringEventTypes),
+  confidence: z.number().finite().min(0).max(1).nullable().optional(),
+  details: z.record(z.string(), z.unknown()),
 });
 
 const MINIMUM_EMBEDDING_SIMILARITY = env.PET_MATCH_MIN_SIMILARITY;
@@ -244,6 +252,7 @@ export const petsRouter = router({
       const [event] = await db
         .insert(petEvents)
         .values({
+          userId: ctx.session.user.id,
           petId: pet.id,
           eventType: "identification",
           confidence: input.confidence,
@@ -258,6 +267,34 @@ export const petsRouter = router({
         });
 
       return event;
+    }),
+
+  recordMonitoringEvents: protectedProcedure
+    .input(z.object({ events: z.array(monitoringEventInput).min(1).max(25) }))
+    .mutation(async ({ ctx, input }) => {
+      const petIds = [...new Set(input.events.flatMap((event) => event.petId ? [event.petId] : []))];
+      if (petIds.length) {
+        const ownedPets = await db.select({ id: pets.id }).from(pets)
+          .where(and(eq(pets.userId, ctx.session.user.id), inArray(pets.id, petIds)));
+        if (ownedPets.length !== petIds.length) throw new TRPCError({ code: "NOT_FOUND", message: "Pet não encontrado" });
+      }
+      return db.insert(petEvents).values(input.events.map((event) => ({
+        userId: ctx.session.user.id,
+        petId: event.petId ?? null,
+        eventType: event.eventType,
+        confidence: event.confidence ?? null,
+        details: event.details,
+      }))).returning({ id: petEvents.id, petId: petEvents.petId, eventType: petEvents.eventType, createdAt: petEvents.createdAt });
+    }),
+
+  listMonitoringEvents: protectedProcedure
+    .input(z.object({ petId: z.string().uuid().optional(), eventTypes: z.array(z.enum(monitoringEventTypes)).max(monitoringEventTypes.length).optional(), limit: z.number().int().min(1).max(100).default(50) }).default({ limit: 50 }))
+    .query(async ({ ctx, input }) => {
+      const conditions = [eq(petEvents.userId, ctx.session.user.id)];
+      if (input.petId) conditions.push(eq(petEvents.petId, input.petId));
+      if (input.eventTypes?.length) conditions.push(inArray(petEvents.eventType, input.eventTypes));
+      return db.select({ id: petEvents.id, petId: petEvents.petId, eventType: petEvents.eventType, confidence: petEvents.confidence, details: petEvents.details, createdAt: petEvents.createdAt })
+        .from(petEvents).where(and(...conditions)).orderBy(desc(petEvents.createdAt)).limit(input.limit);
     }),
 
   update: protectedProcedure

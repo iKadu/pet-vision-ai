@@ -1,5 +1,6 @@
 import time
 import os
+import json
 import requests
 import cv2
 from pathlib import Path
@@ -13,6 +14,7 @@ from core.detections import normalize_detections, suppress_overlapping_detection
 from core.embedding_routes import create_embedding_router
 from core.embedding_service import ImageEmbeddingService
 from core.identification import TrackIdentificationManager
+from core.activity import ActivityClassifier
 from core.embeddings import (
     DEFAULT_EMBEDDING_DIMENSIONS,
     DEFAULT_MODEL_NAME,
@@ -21,6 +23,7 @@ from core.embeddings import (
 )
 from core.stream import VideoStreamReader, parse_preview_fps, parse_target_fps
 from core.tracking import TrajectoryManager
+from core.zones import RiskZoneMonitor, parse_risk_zones
 from urllib.parse import urlsplit, urlunsplit
 
 # A configuração local do projeto deve prevalecer sobre valores antigos
@@ -74,6 +77,16 @@ trajectory_manager = TrajectoryManager(
     max_points=int(os.getenv("TRAJECTORY_MAX_POINTS", "120")),
     max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
 )
+try:
+    configured_risk_zones = parse_risk_zones(json.loads(os.getenv("RISK_ZONES", "[]")))
+except (json.JSONDecodeError, ValueError) as error:
+    raise RuntimeError(f"Configuração RISK_ZONES inválida: {error}") from error
+activity_classifier = ActivityClassifier(
+    window_seconds=float(os.getenv("ACTIVITY_WINDOW_SECONDS", "10")),
+    active_distance_threshold=float(os.getenv("ACTIVITY_ACTIVE_DISTANCE_THRESHOLD", "0.08")),
+    max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
+)
+risk_zone_monitor = RiskZoneMonitor(configured_risk_zones)
 identification_manager = TrackIdentificationManager(
     min_interval_seconds=float(os.getenv("IDENTIFICATION_INTERVAL_SECONDS", "1")),
     max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
@@ -157,6 +170,26 @@ def identified_pet_names(detections: list[dict]) -> list[str]:
             and identification["pet_name"].strip()
         )
     )
+
+
+def attach_identified_pet_to_events(events: list[dict], detections: list[dict]) -> list[dict]:
+    pet_ids_by_track = {
+        detection["track_id"]: identification["pet_id"]
+        for detection in detections
+        if isinstance(detection.get("track_id"), int)
+        and isinstance((identification := detection.get("identification")), dict)
+        and identification.get("status") == "identified"
+        and isinstance(identification.get("pet_id"), str)
+    }
+    source = masked_camera_source(stream_reader.source)
+    enriched_events = []
+    for event in events:
+        enriched = event.copy()
+        if isinstance(event.get("track_id"), int) and event["track_id"] in pet_ids_by_track:
+            enriched["pet_id"] = pet_ids_by_track[event["track_id"]]
+        enriched["source"] = source
+        enriched_events.append(enriched)
+    return enriched_events
 
 
 def detected_message(pet_names: list[str]) -> str:
@@ -289,6 +322,8 @@ def process_stream():
                 detections, DETECTION_DUPLICATE_IOU_THRESHOLD
             )
             detections = trajectory_manager.update(detections, current_time)
+            detections, activity_events = activity_classifier.update(detections, current_time)
+            detections, zone_events = risk_zone_monitor.update(detections)
             identification_requests = create_identification_requests(frame, detections, current_time)
             if identification_requests:
                 identification_response = send_webhook_event(
@@ -311,10 +346,15 @@ def process_stream():
                             },
                         )
             detections = identification_manager.enrich_detections(detections, current_time)
+            phase5_events = attach_identified_pet_to_events([*activity_events, *zone_events], detections)
+            if phase5_events:
+                for monitoring_event in phase5_events:
+                    record_monitoring_event(monitoring_event["event_type"], f"Evento de monitoramento: {monitoring_event['event_type']}", **{key: value for key, value in monitoring_event.items() if key != "event_type"})
+                send_webhook_event("pet_monitoring_events", {"events": phase5_events})
             latest_detections = [
                 {
                     key: detection[key]
-                    for key in ("track_id", "bbox", "identification")
+                    for key in ("track_id", "bbox", "centroid", "activity", "risk_zones", "identification")
                     if key in detection
                 }
                 for detection in detections
@@ -359,6 +399,7 @@ def process_stream():
                         "total_pets": len(detections),
                         "coordinate_space": "normalized",
                         "detections": detections,
+                        "metrics": {"fps": measured_fps, "inference_latency_ms": last_processing_latency_ms, "cycle_latency_ms": last_cycle_latency_ms},
                     })
                 
                 print(f"[IA Engine] Pet visível no frame | Contagem: {len(boxes)}")
