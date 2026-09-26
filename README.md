@@ -58,6 +58,14 @@ npm run dev
 
 Open [http://localhost:3001](http://localhost:3001) in your browser to see the fullstack application.
 
+## Câmera padrão do feed
+
+Em **Câmeras**, use **Definir padrão** na câmera desejada. A escolha fica salva
+por usuário, passa a ser usada pelo feed da página inicial e é iniciada
+automaticamente ao abrir o dashboard. A primeira câmera salva já é marcada como
+padrão; se a câmera padrão for excluída, a câmera salva mais recente assume essa
+função.
+
 ## UI Customization
 
 React web apps in this stack share shadcn/ui primitives through `packages/ui`.

@@ -469,10 +469,16 @@ def start_stream(request: StreamStartRequest, background_tasks: BackgroundTasks)
 
 @app.post("/stream/source")
 def set_stream_source(request: StreamSourceRequest):
-    if stream_reader.is_running:
+    next_source = stream_reader._normalize_source(request.source)
+    source_changed = next_source != stream_reader.source
+    if stream_reader.is_running and source_changed:
         stream_reader.stop()
-    stream_reader.source = stream_reader._normalize_source(request.source)
-    return {"message": "Fonte do stream atualizada.", "source": masked_camera_source(stream_reader.source)}
+    stream_reader.source = next_source
+    return {
+        "message": "Fonte do stream atualizada." if source_changed else "Fonte do stream já está ativa.",
+        "source": masked_camera_source(stream_reader.source),
+        "changed": source_changed,
+    }
 
 @app.post("/stream/stop")
 def stop_stream():

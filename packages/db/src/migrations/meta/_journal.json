@@ -22,6 +22,13 @@
       "when": 1790089200000,
       "tag": "0002_phase5_monitoring",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790175600000,
+      "tag": "0003_camera_default",
+      "breakpoints": true
     }
   ]
 }

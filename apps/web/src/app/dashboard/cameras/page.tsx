@@ -16,21 +16,12 @@ import {
 } from "lucide-react";
 
 import { trpc } from "@/utils/trpc";
+import { activateAiStream, AI_ENGINE_URL } from "@/lib/ai-stream";
+import { identificationDisplay, type StreamDetection } from "@/lib/identification-display";
 
-const ENGINE_URL = "http://localhost:8000";
+const ENGINE_URL = AI_ENGINE_URL;
 const ENGINE_REQUEST_TIMEOUT_MS = 5_000;
 type CameraType = "webcam" | "screen" | "rtsp";
-
-type StreamDetection = {
-  track_id?: number;
-  bbox: { x: number; y: number; width: number; height: number };
-  identification?: {
-    status: "identified" | "confirming" | "possible" | "unknown";
-    pet_name?: string;
-    similarity?: number;
-    margin?: number;
-  };
-};
 
 type StreamStatus = {
   stream_running: boolean;
@@ -49,59 +40,6 @@ function sourceLabel(source: CameraType) {
   if (source === "webcam") return "Webcam local";
   if (source === "screen") return "Tela do computador";
   return "Câmera IP";
-}
-
-function identificationDisplay(detection: StreamDetection) {
-  const evidence = (identification: StreamDetection["identification"]) => {
-    if (!identification?.similarity) return "Evidência visual indisponível";
-    const similarity = `Similaridade ${Math.round(identification.similarity * 100)}%`;
-    return typeof identification.margin === "number"
-      ? `${similarity} · margem +${Math.round(identification.margin * 100)} pts`
-      : similarity;
-  };
-
-  if (detection.identification?.status === "identified") {
-    return {
-      accent: "#2dd4bf",
-      name: detection.identification.pet_name ?? "Pet cadastrado",
-      status: "Identificado",
-      detail: evidence(detection.identification),
-    };
-  }
-
-  if (detection.identification?.status === "confirming") {
-    return {
-      accent: "#93c5fd",
-      name: detection.identification.pet_name ?? "Pet candidato",
-      status: "Confirmando identidade",
-      detail: "Aguardando nova leitura consistente",
-    };
-  }
-
-  if (detection.identification?.status === "possible") {
-    return {
-      accent: "#fbbf24",
-      name: detection.identification.pet_name ?? "Pet candidato",
-      status: "Possível identificação",
-      detail: `${evidence(detection.identification)} · margem insuficiente`,
-    };
-  }
-
-  if (detection.identification?.status === "unknown") {
-    return {
-      accent: "#fbbf24",
-      name: "Nome: —",
-      status: "Não identificado",
-      detail: "Sem referência compatível",
-    };
-  }
-
-  return {
-    accent: "#93c5fd",
-    name: "Buscando referência",
-    status: "Analisando",
-    detail: "Aguardando confirmação",
-  };
 }
 
 async function fetchEngine(path: string, init?: RequestInit) {
@@ -128,8 +66,6 @@ export default function CamerasPage() {
   const [running, setRunning] = useState(false);
   const [isTogglingStream, setIsTogglingStream] = useState(false);
   const [message, setMessage] = useState("");
-  const [changingSource, setChangingSource] = useState(false);
-  const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
   const [editingCamera, setEditingCamera] = useState<{
     id: string;
     name: string;
@@ -195,10 +131,21 @@ export default function CamerasPage() {
   ).length;
   const createCamera = useMutation(
     trpc.cameras.create.mutationOptions({
-      onSuccess: () => {
+      onSuccess: async (camera) => {
         void camerasQuery.refetch();
         setCameraName("");
-        setMessage("Câmera salva com sucesso.");
+        if (!camera.isDefault) {
+          setMessage("Câmera salva com sucesso.");
+          return;
+        }
+        try {
+          await activateAiStream(camera.source);
+          setRunning(true);
+          void streamStatusQuery.refetch();
+          setMessage(`“${camera.name}” foi salva como câmera padrão e está ativa no feed ao vivo.`);
+        } catch {
+          setMessage(`“${camera.name}” foi salva como padrão, mas não pôde ser iniciada agora.`);
+        }
       },
     }),
   );
@@ -211,15 +158,23 @@ export default function CamerasPage() {
       },
     }),
   );
+  const setDefaultCamera = useMutation(trpc.cameras.setDefault.mutationOptions());
   const deleteCamera = useMutation(
     trpc.cameras.delete.mutationOptions({
       onSuccess: (_data, variables) => {
         void camerasQuery.refetch();
-        if (activeCameraId === variables.id) setActiveCameraId(null);
         setMessage("Câmera excluída com sucesso.");
       },
     }),
   );
+
+  const defaultCamera = camerasQuery.data?.find((camera) => camera.isDefault);
+
+  useEffect(() => {
+    if (!defaultCamera) return;
+    setSource(defaultCamera.type as CameraType);
+    if (defaultCamera.type === "rtsp") setRtspUrl(defaultCamera.source);
+  }, [defaultCamera]);
 
   function getSourceValue() {
     return source === "webcam"
@@ -229,54 +184,15 @@ export default function CamerasPage() {
         : rtspUrl.trim();
   }
 
-  async function changeSource(nextSource: CameraType, sourceOverride?: string) {
-    const sourceValue =
-      sourceOverride ??
-      (nextSource === "webcam"
-        ? "0"
-        : nextSource === "screen"
-          ? "screen"
-          : rtspUrl.trim());
-    if (nextSource === "rtsp" && !sourceValue.startsWith("rtsp://")) {
-      setMessage("Informe uma URL RTSP válida.");
-      return;
-    }
-    setActiveCameraId(null);
+  function selectSource(nextSource: CameraType) {
     setSource(nextSource);
-    setChangingSource(true);
-    try {
-      if (running) {
-        const stopResponse = await fetchEngine("/stream/stop", {
-          method: "POST",
-        });
-        if (!stopResponse.ok)
-          throw new Error("Não foi possível parar a fonte atual");
-      }
-      const response = await fetchEngine("/stream/source", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: sourceValue }),
-      });
-      if (!response.ok) throw new Error("Não foi possível alterar a fonte");
-      setRunning(false);
-      setMessage(
-        nextSource === "webcam"
-          ? "Webcam selecionada."
-          : nextSource === "screen"
-            ? "Tela do computador selecionada."
-            : "Câmera IP selecionada.",
-      );
-      return true;
-    } catch {
-      setMessage("Não foi possível alterar a fonte do motor local.");
-      return false;
-    } finally {
-      setChangingSource(false);
-    }
+    setMessage(
+      "Fonte selecionada para configuração. Salve-a e defina-a como padrão para aplicá-la ao feed.",
+    );
   }
 
   async function toggleStream() {
-    if (changingSource || isTogglingStream) return;
+    if (isTogglingStream) return;
     const action = running ? "stop" : "start";
     setIsTogglingStream(true);
     try {
@@ -321,20 +237,31 @@ export default function CamerasPage() {
     }
   }
 
-  async function useSavedCamera(camera: {
+  async function setCameraAsDefault(camera: {
     id: string;
     type: string;
     source: string;
+    isDefault: boolean;
   }) {
-    if (!(["webcam", "screen", "rtsp"] as string[]).includes(camera.type)) {
-      setMessage("Esta câmera possui um tipo inválido.");
-      return;
+    if (camera.isDefault || setDefaultCamera.isPending) return;
+    let preferenceSaved = false;
+    try {
+      const defaultCamera = await setDefaultCamera.mutateAsync({ id: camera.id });
+      preferenceSaved = true;
+      setSource(defaultCamera.type as CameraType);
+      if (defaultCamera.type === "rtsp") setRtspUrl(defaultCamera.source);
+      void camerasQuery.refetch();
+      await activateAiStream(defaultCamera.source);
+      setRunning(true);
+      void streamStatusQuery.refetch();
+      setMessage(`“${defaultCamera.name}” agora é a câmera padrão e está ativa no feed ao vivo.`);
+    } catch {
+      setMessage(
+        preferenceSaved
+          ? "A preferência foi salva, mas não foi possível iniciar a câmera padrão."
+          : "Não foi possível definir a câmera padrão.",
+      );
     }
-
-    const cameraType = camera.type as CameraType;
-    if (cameraType === "rtsp") setRtspUrl(camera.source);
-    if (await changeSource(cameraType, camera.source))
-      setActiveCameraId(camera.id);
   }
 
   function saveCamera(event: React.FormEvent<HTMLFormElement>) {
@@ -390,7 +317,7 @@ export default function CamerasPage() {
               Câmeras
             </h1>
             <p className="mt-2 text-sm text-zinc-500">
-              Escolha a fonte que deseja acompanhar.
+              Configure a fonte que o feed ao vivo deve acompanhar.
             </p>
           </header>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -399,7 +326,7 @@ export default function CamerasPage() {
                 <div>
                   <h2 className="font-semibold text-white">Pré-visualização</h2>
                   <p className="mt-1 text-xs text-zinc-500">
-                    {sourceLabel(source)}
+                    {defaultCamera ? `${defaultCamera.name} · câmera padrão` : "Nenhuma câmera padrão"}
                   </p>
                 </div>
                 <span
@@ -416,14 +343,14 @@ export default function CamerasPage() {
                   <>
                     <img
                       src={`${ENGINE_URL}/stream/video`}
-                      alt={`Pré-visualização: ${sourceLabel(source)}`}
-                      className="absolute inset-0 h-full w-full object-cover"
+                      alt={`Pré-visualização da câmera padrão${defaultCamera ? `: ${defaultCamera.name}` : ""}`}
+                      className="absolute inset-0 h-full w-full object-contain"
                     />
                     <svg
                       aria-hidden="true"
                       className="pointer-events-none absolute inset-0 h-full w-full"
                       viewBox={`0 0 ${frameWidth} ${frameHeight}`}
-                      preserveAspectRatio="xMidYMid slice"
+                      preserveAspectRatio="xMidYMid meet"
                     >
                       {streamDetections.map((detection, index) => {
                         const display = identificationDisplay(detection);
@@ -603,7 +530,7 @@ export default function CamerasPage() {
                 <button
                   type="button"
                   onClick={() => void toggleStream()}
-                  disabled={changingSource || isTogglingStream}
+                  disabled={isTogglingStream}
                   className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {running ? (
@@ -624,13 +551,12 @@ export default function CamerasPage() {
             <aside className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
               <h2 className="font-semibold">Fonte de vídeo</h2>
               <p className="mt-1 text-xs leading-5 text-zinc-500">
-                Selecione o que o motor deve analisar.
+                Escolha a fonte para salvar ou editar. O motor usa exclusivamente a câmera marcada como padrão.
               </p>
               <div className="mt-5 space-y-2">
                 <button
                   type="button"
-                  disabled={changingSource}
-                  onClick={() => void changeSource("webcam")}
+                  onClick={() => selectSource("webcam")}
                   className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${source === "webcam" ? "border-zinc-900 text-zinc-900" : "border-zinc-200 text-zinc-500 hover:border-zinc-400"}`}
                 >
                   <Camera className="h-4 w-4" />
@@ -645,8 +571,7 @@ export default function CamerasPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={changingSource}
-                  onClick={() => void changeSource("screen")}
+                  onClick={() => selectSource("screen")}
                   className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${source === "screen" ? "border-zinc-900 text-zinc-900" : "border-zinc-200 text-zinc-500 hover:border-zinc-400"}`}
                 >
                   <Monitor className="h-4 w-4" />
@@ -661,7 +586,6 @@ export default function CamerasPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={changingSource}
                   onClick={() => setSource("rtsp")}
                   className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${source === "rtsp" ? "border-zinc-900 text-zinc-900" : "border-zinc-200 text-zinc-500 hover:border-zinc-400"}`}
                 >
@@ -690,11 +614,10 @@ export default function CamerasPage() {
                     />
                     <button
                       type="button"
-                      disabled={changingSource}
-                      onClick={() => void changeSource("rtsp")}
+                      onClick={() => selectSource("rtsp")}
                       className="w-full rounded-lg bg-zinc-950 px-3 py-2 text-xs font-semibold text-white hover:bg-zinc-800"
                     >
-                      {changingSource ? "Alterando..." : "Salvar fonte IP"}
+                      Salvar fonte IP no formulário
                     </button>
                   </div>
                 )}
@@ -827,11 +750,11 @@ export default function CamerasPage() {
                       <div className="flex shrink-0 items-center gap-1">
                         <button
                           type="button"
-                          disabled={changingSource || deleteCamera.isPending}
-                          onClick={() => void useSavedCamera(camera)}
-                          className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${activeCameraId === camera.id ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"}`}
+                          disabled={camera.isDefault || deleteCamera.isPending || setDefaultCamera.isPending}
+                          onClick={() => void setCameraAsDefault(camera)}
+                          className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-default ${camera.isDefault ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 disabled:opacity-50"}`}
                         >
-                          {activeCameraId === camera.id ? "Em uso" : "Usar"}
+                          {camera.isDefault ? "Padrão ativo" : "Definir padrão"}
                         </button>
                         <button
                           type="button"
