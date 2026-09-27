@@ -7,36 +7,62 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@tccpet/ui/components/dropdown-menu";
-import { Moon, Sun } from "lucide-react";
+import { Check, LaptopMinimal, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import * as React from "react";
+import { useEffect, useMemo, useState } from "react";
+
+const themeOptions = [
+  { value: "light", label: "Claro", icon: Sun },
+  { value: "dark", label: "Escuro", icon: Moon },
+  { value: "system", label: "Sistema", icon: LaptopMinimal },
+] as const;
 
 export function ModeToggle() {
-  const [theme, setTheme] = React.useState<"light" | "dark" | "system">("system");
+  const { theme, resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
-  React.useEffect(() => {
-    const storedTheme = window.localStorage.getItem("theme") as "light" | "dark" | "system" | null;
-    setTheme(storedTheme ?? "system");
-  }, []);
+  useEffect(() => setMounted(true), []);
 
-  React.useEffect(() => {
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const isDark = theme === "dark" || (theme === "system" && prefersDark);
-    document.documentElement.classList.toggle("dark", isDark);
-    window.localStorage.setItem("theme", theme);
-  }, [theme]);
+  const selectedTheme = mounted ? theme ?? "system" : "system";
+  const triggerLabel = useMemo(() => {
+    const selected = themeOptions.find(({ value }) => value === selectedTheme);
+    return `Tema: ${selected?.label ?? "Sistema"}`;
+  }, [selectedTheme]);
+  const TriggerIcon = selectedTheme === "system"
+    ? LaptopMinimal
+    : resolvedTheme === "dark"
+      ? Moon
+      : Sun;
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" size="icon" />}>
-        <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-        <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-        <span className="sr-only">Toggle theme</span>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="shrink-0 rounded-lg text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
+            aria-label={triggerLabel}
+            title={triggerLabel}
+          />
+        }
+      >
+        <TriggerIcon className="h-4 w-4" aria-hidden="true" />
+        <span className="sr-only">{triggerLabel}</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme("light")}>Light</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>Dark</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>System</DropdownMenuItem>
+      <DropdownMenuContent align="start" side="top" sideOffset={8} className="w-40 p-1">
+        {themeOptions.map(({ value, label, icon: Icon }) => (
+          <DropdownMenuItem
+            key={value}
+            className="flex items-center gap-2"
+            onClick={() => setTheme(value)}
+          >
+            <Icon className="h-4 w-4 text-zinc-500" />
+            <span className="flex-1">{label}</span>
+            {selectedTheme === value && <Check className="h-4 w-4" aria-label="Selecionado" />}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );

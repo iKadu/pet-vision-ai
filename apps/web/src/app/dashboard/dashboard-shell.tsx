@@ -35,7 +35,10 @@ export default function DashboardShell({ children }: Props) {
         </nav>
         <div className="mt-auto space-y-2 border-t border-zinc-100 pt-4">
           <Link href={'/dashboard/settings' as Route} aria-current={pathname.startsWith('/dashboard/settings') ? 'page' : undefined} title={!expanded ? 'Configurações' : undefined} className={cardClass(pathname.startsWith('/dashboard/settings'))}><span className={`flex items-center ${expanded ? 'gap-3' : 'justify-center w-full'}`}><span className="flex h-7 w-7 items-center justify-center rounded-md bg-zinc-50"><Settings2 className="h-4 w-4" /></span>{expanded && <span className="text-sm font-medium">Configurações</span>}</span>{expanded && <ChevronRight className="h-4 w-4 text-zinc-300" />}</Link>
-          <div className={`flex items-center ${expanded ? 'justify-between' : 'justify-center'} rounded-lg px-1 py-1`}><ModeToggle />{expanded && <UserMenu />}</div>
+          <div className={`flex min-h-9 items-center ${expanded ? 'justify-between gap-2' : 'justify-center'} rounded-lg px-1 py-1`}>
+            <ModeToggle />
+            {expanded && <UserMenu />}
+          </div>
           {!expanded && <div className="flex justify-center"><UserMenu compact /></div>}
         </div>
       </aside>
