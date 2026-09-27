@@ -3,3 +3,4 @@ export * from "./todo";
 export {};
 export * from "./pets";
 export * from "./cameras";
+export * from "./monitoring-preferences";

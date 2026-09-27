@@ -29,6 +29,13 @@
       "when": 1790175600000,
       "tag": "0003_camera_default",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790520878265,
+      "tag": "0004_monitoring-preferences",
+      "breakpoints": true
     }
   ]
 }
