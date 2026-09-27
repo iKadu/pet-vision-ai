@@ -40,18 +40,18 @@ export default function UserMenu({ compact = false }: { compact?: boolean }) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" className="h-9 gap-2 rounded-lg px-2 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950" />}>
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-950 text-[10px] font-semibold text-white">{initials}</span>
+      <DropdownMenuTrigger render={<Button variant="ghost" className="h-9 gap-2 rounded-lg px-2 text-muted-foreground hover:bg-accent hover:text-foreground" />}>
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">{initials}</span>
         {!compact && <span className="hidden max-w-32 truncate text-sm font-medium sm:inline">{session.user.name}</span>}
-        {!compact && <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />}
+        {!compact && <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 bg-white p-1">
+      <DropdownMenuContent align="end" className="w-56 border-border bg-popover p-1 text-popover-foreground">
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="flex items-center gap-2 px-3 py-2 font-normal text-zinc-500"><UserRound className="h-4 w-4" />Minha conta</DropdownMenuLabel>
+          <DropdownMenuLabel className="flex items-center gap-2 px-3 py-2 font-normal text-muted-foreground"><UserRound className="h-4 w-4" />Minha conta</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem className="flex-col items-start gap-0.5 px-3 py-2 text-xs" disabled>
-            <span className="font-medium text-zinc-800">{session.user.name}</span>
-            <span className="text-zinc-400">{session.user.email}</span>
+            <span className="font-medium text-foreground">{session.user.name}</span>
+            <span className="text-muted-foreground">{session.user.email}</span>
           </DropdownMenuItem>
           <DropdownMenuItem
             className="mt-1 gap-2"
