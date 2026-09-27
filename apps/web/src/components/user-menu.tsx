@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@tccpet/ui/components/dropdown-menu";
 import { Skeleton } from "@tccpet/ui/components/skeleton";
-import { ChevronDown, LogOut, UserRound } from "lucide-react";
+import { ChevronDown, LogOut, PencilLine, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -53,6 +53,14 @@ export default function UserMenu({ compact = false }: { compact?: boolean }) {
             <span className="font-medium text-zinc-800">{session.user.name}</span>
             <span className="text-zinc-400">{session.user.email}</span>
           </DropdownMenuItem>
+          <DropdownMenuItem
+            className="mt-1 gap-2"
+            onClick={() => router.push("/dashboard/profile")}
+          >
+            <PencilLine className="h-4 w-4" />
+            Gerenciar perfil
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
             className="mt-1 gap-2"
