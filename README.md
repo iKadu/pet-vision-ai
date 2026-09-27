@@ -58,6 +58,27 @@ npm run dev
 
 Open [http://localhost:3001](http://localhost:3001) in your browser to see the fullstack application.
 
+## AI Engine e testes
+
+O motor de IA usa um ambiente virtual Python local em `apps/ai-engine/.venv`.
+Após clonar o repositório, crie-o e instale as dependências uma única vez:
+
+```powershell
+py -m venv apps/ai-engine/.venv
+.\apps\ai-engine\.venv\Scripts\python.exe -m pip install -r .\apps\ai-engine\requirements.txt
+```
+
+Para validar detecção, rastreamento, identificação, embeddings, atividade e
+configuração do stream antes de uma alteração no motor, execute na raiz do
+repositório:
+
+```powershell
+npm run test:ai
+```
+
+O comando usa o ambiente virtual do projeto e executa todos os testes em
+`apps/ai-engine/tests`. Ele não inicia câmera, banco ou servidor web.
+
 ## Câmera padrão do feed
 
 Em **Câmeras**, use **Definir padrão** na câmera desejada. A escolha fica salva

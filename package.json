@@ -10,6 +10,7 @@
     "dev": "concurrently -k -n \"WEB,PYTHON\" -c \"cyan,magenta\" \"npm run dev:web\" \"npm run dev:ai\"",
     "dev:web": "turbo run dev -F web --",
     "dev:ai": "cd apps/ai-engine && .venv\\Scripts\\python.exe -m uvicorn main:app --reload --port 8000",
+    "test:ai": "cd apps/ai-engine && .venv\\Scripts\\python.exe -m pytest tests",
     "build": "turbo run build",
     "check-types": "turbo run check-types",
     "db:push": "turbo run db:push -F @tccpet/db --",
