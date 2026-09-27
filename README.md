@@ -14,70 +14,102 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 - **Authentication** - Better-Auth
 - **Turborepo** - Optimized monorepo build system
 
-## Getting Started
+## Instalação local
 
-First, install the dependencies:
+O projeto exige Node.js com npm, Python com o comando `py` disponível e Docker
+Desktop em execução. Todos os comandos abaixo são executados na raiz do
+repositório.
 
-```bash
+### 1. Instalar dependências e preparar os arquivos locais
+
+```powershell
 npm install
+Copy-Item apps/web/.env.example apps/web/.env
+Copy-Item apps/ai-engine/.env.example apps/ai-engine/.env
 ```
 
-## Database Setup
+Gere um valor seguro para `BETTER_AUTH_SECRET` e substitua o placeholder em
+`apps/web/.env`:
 
-This project uses local PostgreSQL with `pgvector` via Docker Compose.
-
-1. Configure `apps/web/.env` with your local database URL:
-
-```bash
-DATABASE_URL=postgresql://postgres:password@localhost:5433/tccpet
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 ```
 
-2. Start the local database:
+Defina também um mesmo valor não vazio de `AI_WEBHOOK_SECRET` nos dois arquivos
+`.env`. Ele permite que apenas o AI Engine local registre eventos no frontend.
+Os arquivos `.env` são individuais da máquina e não devem ser commitados.
 
-```bash
+### 2. Iniciar e atualizar o banco
+
+O PostgreSQL local usa Docker e já inclui a extensão `pgvector` necessária para
+os embeddings dos pets.
+
+```powershell
 npm run db:start
-```
-
-3. Confirm the `pgvector` extension is installed:
-
-```bash
-docker compose -f packages/db/docker-compose.yml exec postgres psql -U postgres -d tccpet -c "\dx vector"
-```
-
-4. Apply the schema to your database:
-
-```bash
 npm run db:push
 ```
 
-Then, run the development server:
+Para confirmar o banco, abra o DBeaver em
+`postgresql://postgres:password@localhost:5433/tccpet` ou execute:
 
-```bash
-npm run dev
+```powershell
+docker compose -f packages/db/docker-compose.yml exec postgres psql -U postgres -d tccpet -c "\dx vector"
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the fullstack application.
+`db:push` aplica o estado atual dos esquemas a um banco já existente; portanto,
+deve ser executado após receber alterações de banco por `git pull`.
 
-## AI Engine e testes
+### 3. Preparar o AI Engine
 
-O motor de IA usa um ambiente virtual Python local em `apps/ai-engine/.venv`.
-Após clonar o repositório, crie-o e instale as dependências uma única vez:
+O motor usa um ambiente virtual Python local. Crie-o e instale as dependências
+uma única vez por máquina:
 
 ```powershell
 py -m venv apps/ai-engine/.venv
 .\apps\ai-engine\.venv\Scripts\python.exe -m pip install -r .\apps\ai-engine\requirements.txt
 ```
 
-Para validar detecção, rastreamento, identificação, embeddings, atividade e
-configuração do stream antes de uma alteração no motor, execute na raiz do
-repositório:
+Em computadores sem GPU NVIDIA, o motor continua funcionando em CPU. O primeiro
+uso pode baixar os pesos dos modelos e levar mais tempo; não é necessário CUDA
+para executar o projeto ou os testes.
+
+### 4. Iniciar o sistema
 
 ```powershell
-npm run test:ai
+npm run dev
 ```
 
-O comando usa o ambiente virtual do projeto e executa todos os testes em
-`apps/ai-engine/tests`. Ele não inicia câmera, banco ou servidor web.
+Abra [http://localhost:3001](http://localhost:3001). O comando sobe Next.js em
+`3001` e FastAPI em `8000`. Para iniciar apenas uma parte, use `npm run dev:web`
+ou `npm run dev:ai`.
+
+## Validação local
+
+```powershell
+npm run check-types
+npm run test:ai
+npm run evaluate:identification
+```
+
+- `check-types` confere os tipos TypeScript do monorepo.
+- `test:ai` executa os testes automatizados do AI Engine, sem abrir câmera ou
+  banco.
+- `evaluate:identification` avalia as fotos de referência já cadastradas no
+  banco. São dados de diagnóstico; o comando não treina um novo modelo.
+
+## Problemas frequentes
+
+- **`turbo is not recognized`**: execute `npm install` na raiz após clonar.
+- **`url: ''` ao usar `db:push`**: confirme que `apps/web/.env` existe, que
+  `DATABASE_URL` está preenchida e que o comando é executado na raiz.
+- **AI Engine não inicia**: confirme a existência de
+  `apps/ai-engine/.venv/Scripts/python.exe`; se não existir, execute a etapa 3.
+- **O painel informa que o motor não respondeu**: mantenha `npm run dev` aberto
+  e acesse `http://localhost:8000/status` para confirmar que o AI Engine está
+  ativo.
+- **O feed está preto**: salve uma câmera e marque-a como padrão antes de
+  iniciar o monitoramento. A fonte selecionada na tela só passa a ser usada pelo
+  feed depois de salva.
 
 ## Câmera padrão do feed
 
