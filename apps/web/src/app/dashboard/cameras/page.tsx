@@ -288,22 +288,22 @@ export default function CamerasPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f3] text-zinc-900">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="min-h-screen px-5 py-10 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-6xl">
-          <header className="mb-8 border-b border-zinc-200 pb-7">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
+          <header className="mb-8 border-b border-border pb-7">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               Visualização
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight">
               Câmeras
             </h1>
-            <p className="mt-2 text-sm text-zinc-500">
+            <p className="mt-2 text-sm text-muted-foreground">
               Configure a fonte que o feed ao vivo deve acompanhar.
             </p>
           </header>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <section className="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-950 shadow-sm">
+            <section className="overflow-hidden rounded-xl border border-border bg-zinc-950 shadow-sm">
               <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
                 <div>
                   <h2 className="font-semibold text-white">Pré-visualização</h2>
@@ -312,10 +312,10 @@ export default function CamerasPage() {
                   </p>
                 </div>
                 <span
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${running ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-white/10 text-zinc-500"}`}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${running ? "border-primary/30 bg-primary/10 text-primary" : "border-white/10 text-zinc-500"}`}
                 >
                   <span
-                    className={`h-1.5 w-1.5 rounded-full ${running ? "bg-emerald-400" : "bg-zinc-600"}`}
+                    className={`h-1.5 w-1.5 rounded-full ${running ? "bg-primary" : "bg-zinc-600"}`}
                   />
                   {running ? "Ao vivo" : "Pausado"}
                 </span>
@@ -530,16 +530,16 @@ export default function CamerasPage() {
                 </button>
               </div>
             </section>
-            <aside className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <aside className="rounded-xl border border-border bg-card p-5 shadow-sm">
               <h2 className="font-semibold">Fonte de vídeo</h2>
-              <p className="mt-1 text-xs leading-5 text-zinc-500">
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
                 Escolha a fonte para salvar ou editar. O motor usa exclusivamente a câmera marcada como padrão.
               </p>
               <div className="mt-5 space-y-2">
                 <button
                   type="button"
                   onClick={() => selectSource("webcam")}
-                  className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${source === "webcam" ? "border-zinc-900 text-zinc-900" : "border-zinc-200 text-zinc-500 hover:border-zinc-400"}`}
+                  className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${source === "webcam" ? "border-primary bg-accent text-accent-foreground" : "border-border text-muted-foreground hover:border-primary/50 hover:bg-surface-raised"}`}
                 >
                   <Camera className="h-4 w-4" />
                   <span>
@@ -554,7 +554,7 @@ export default function CamerasPage() {
                 <button
                   type="button"
                   onClick={() => selectSource("screen")}
-                  className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${source === "screen" ? "border-zinc-900 text-zinc-900" : "border-zinc-200 text-zinc-500 hover:border-zinc-400"}`}
+                  className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${source === "screen" ? "border-primary bg-accent text-accent-foreground" : "border-border text-muted-foreground hover:border-primary/50 hover:bg-surface-raised"}`}
                 >
                   <Monitor className="h-4 w-4" />
                   <span>
@@ -569,7 +569,7 @@ export default function CamerasPage() {
                 <button
                   type="button"
                   onClick={() => setSource("rtsp")}
-                  className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${source === "rtsp" ? "border-zinc-900 text-zinc-900" : "border-zinc-200 text-zinc-500 hover:border-zinc-400"}`}
+                  className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${source === "rtsp" ? "border-primary bg-accent text-accent-foreground" : "border-border text-muted-foreground hover:border-primary/50 hover:bg-surface-raised"}`}
                 >
                   <Radio className="h-4 w-4" />
                   <span>
@@ -624,7 +624,7 @@ export default function CamerasPage() {
                 <button
                   type="submit"
                   disabled={createCamera.isPending}
-                  className="mt-3 w-full rounded-lg bg-zinc-950 px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-3 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {createCamera.isPending ? "Salvando..." : "Salvar câmera"}
                 </button>
@@ -632,7 +632,7 @@ export default function CamerasPage() {
             </aside>
           </div>
           {camerasQuery.isSuccess && camerasQuery.data.length > 0 && (
-            <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <section className="mt-6 rounded-xl border border-border bg-card p-5 shadow-sm">
               <div className="flex items-baseline justify-between gap-4">
                 <div>
                   <h2 className="font-semibold">Câmeras salvas</h2>
@@ -734,7 +734,7 @@ export default function CamerasPage() {
                           type="button"
                           disabled={camera.isDefault || deleteCamera.isPending || setDefaultCamera.isPending}
                           onClick={() => void setCameraAsDefault(camera)}
-                          className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-default ${camera.isDefault ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 disabled:opacity-50"}`}
+                          className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-default ${camera.isDefault ? "bg-success/10 text-success" : "bg-surface-raised text-foreground hover:bg-accent disabled:opacity-50"}`}
                         >
                           {camera.isDefault ? "Padrão ativo" : "Definir padrão"}
                         </button>
@@ -757,7 +757,7 @@ export default function CamerasPage() {
                           type="button"
                           aria-label={`Excluir ${camera.name}`}
                           onClick={() => removeCamera(camera.id)}
-                          className="rounded-lg p-2 text-zinc-400 hover:text-rose-600"
+                          className="rounded-lg p-2 text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
