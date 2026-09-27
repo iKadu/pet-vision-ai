@@ -17,6 +17,12 @@ local.db-*
 .env
 .env*.local
 
+# Python runtime artifacts and local AI weights
+apps/ai-engine/.venv/
+apps/ai-engine/**/__pycache__/
+*.py[cod]
+apps/ai-engine/yolo11n.pt
+
 # IDEs and editors
 .vscode/*
 !.vscode/settings.json
