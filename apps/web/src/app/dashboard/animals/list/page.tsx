@@ -120,59 +120,59 @@ export default function AnimalsListPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f3] text-zinc-900">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="px-5 py-8 sm:px-8 sm:py-10 lg:px-10">
         <div className="mx-auto max-w-5xl">
           <DashboardBackLink href="/dashboard/animals" label="Animais" />
-          <header className="mb-8 mt-5 border-b border-zinc-200 pb-7">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
+          <header className="mb-8 mt-5 border-b border-border pb-7">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               Perfis
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight">
               Animais cadastrados
             </h1>
-            <p className="mt-2 text-sm text-zinc-500">
+            <p className="mt-2 text-sm text-muted-foreground">
               Consulte e edite os perfis acompanhados pelo sistema.
             </p>
           </header>
           {petsQuery.isPending && (
-            <section className="rounded-xl border border-zinc-200 bg-white px-6 py-16 text-center text-sm text-zinc-500">
+            <section className="rounded-xl border border-border bg-card px-6 py-16 text-center text-sm text-muted-foreground">
               Carregando animais...
             </section>
           )}
           {petsQuery.isError && (
-            <section className="rounded-xl border border-rose-200 bg-rose-50 px-6 py-12 text-center">
-              <h2 className="text-sm font-semibold text-rose-800">
+            <section className="rounded-xl border border-destructive/25 bg-destructive/10 px-6 py-12 text-center">
+              <h2 className="text-sm font-semibold text-destructive">
                 Não foi possível carregar os animais
               </h2>
-              <p className="mt-2 text-sm text-rose-700">
+              <p className="mt-2 text-sm text-destructive">
                 Verifique sua conexão e tente novamente.
               </p>
               <button
                 type="button"
                 onClick={() => void petsQuery.refetch()}
-                className="mt-5 rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
+                className="mt-5 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover"
               >
                 Tentar novamente
               </button>
             </section>
           )}
           {petsQuery.isSuccess && petsQuery.data.length === 0 && (
-            <section className="rounded-xl border border-dashed border-zinc-300 bg-white/60 px-6 py-16 sm:py-20">
+            <section className="rounded-xl border border-dashed border-border bg-card/60 px-6 py-16 sm:py-20">
               <div className="mx-auto flex max-w-md flex-col items-center text-center">
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-500">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-raised text-muted-foreground">
                   <UsersRound className="h-5 w-5" />
                 </span>
                 <h2 className="mt-5 text-lg font-semibold tracking-tight">
                   Nenhum animal cadastrado
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-zinc-500">
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   Cadastre o primeiro perfil para começar a organizar a
                   identificação dos animais.
                 </p>
                 <Link
                   href="/dashboard/animals/new"
-                  className="mt-6 inline-flex items-center gap-2 rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
+                  className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover"
                 >
                   <Plus className="h-4 w-4" />
                   Cadastrar primeiro animal
@@ -185,9 +185,9 @@ export default function AnimalsListPage() {
               {petsQuery.data.map((pet) => (
                 <article
                   key={pet.id}
-                  className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm"
+                  className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
                 >
-                  <div className="flex aspect-[4/3] items-center justify-center bg-zinc-100 text-zinc-400">
+                  <div className="flex aspect-[4/3] items-center justify-center bg-surface-raised text-muted-foreground">
                     {pet.photoUrl ? (
                       <img
                         src={pet.photoUrl}
@@ -201,7 +201,7 @@ export default function AnimalsListPage() {
                   {editingPet?.id === pet.id ? (
                     <form onSubmit={savePetEdit} className="space-y-3 p-5">
                       <label className="block">
-                        <span className="text-xs font-medium text-zinc-500">
+                        <span className="text-xs font-medium text-muted-foreground">
                           Nome
                         </span>
                         <input
@@ -213,13 +213,13 @@ export default function AnimalsListPage() {
                                 : current,
                             )
                           }
-                          className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition-colors focus:border-zinc-950"
+                          className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm outline-none transition-colors focus:border-primary"
                           autoFocus
                         />
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         <label className="block">
-                          <span className="text-xs font-medium text-zinc-500">
+                          <span className="text-xs font-medium text-muted-foreground">
                             Espécie
                           </span>
                           <select
@@ -235,14 +235,14 @@ export default function AnimalsListPage() {
                                   : current,
                               )
                             }
-                            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-2 py-2 text-sm outline-none focus:border-zinc-950"
+                            className="mt-1 w-full rounded-lg border border-border bg-card px-2 py-2 text-sm outline-none focus:border-primary"
                           >
                             <option value="dog">Cachorro</option>
                             <option value="cat">Gato</option>
                           </select>
                         </label>
                         <label className="block">
-                          <span className="text-xs font-medium text-zinc-500">
+                          <span className="text-xs font-medium text-muted-foreground">
                             Raça
                           </span>
                           <input
@@ -254,7 +254,7 @@ export default function AnimalsListPage() {
                                   : current,
                               )
                             }
-                            className="mt-1 w-full rounded-lg border border-zinc-300 px-2 py-2 text-sm outline-none focus:border-zinc-950"
+                            className="mt-1 w-full rounded-lg border border-border px-2 py-2 text-sm outline-none focus:border-primary"
                           />
                         </label>
                       </div>
@@ -262,7 +262,7 @@ export default function AnimalsListPage() {
                         <button
                           type="button"
                           onClick={() => setEditingPet(null)}
-                          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-sm text-zinc-500 transition-colors hover:text-zinc-900"
+                          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
                         >
                           <X className="h-4 w-4" />
                           Cancelar
@@ -272,7 +272,7 @@ export default function AnimalsListPage() {
                           disabled={
                             updatePet.isPending || !editingPet.name.trim()
                           }
-                          className="inline-flex items-center gap-1 rounded-lg bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <Check className="h-4 w-4" />
                           {updatePet.isPending ? "Salvando" : "Salvar"}
@@ -284,7 +284,7 @@ export default function AnimalsListPage() {
                       <h2 className="font-semibold tracking-tight">
                         {pet.name}
                       </h2>
-                      <p className="mt-1 text-sm text-zinc-500">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         {pet.species === "dog" ? "Cachorro" : "Gato"}
                         {pet.breed ? ` · ${pet.breed}` : ""}
                       </p>
@@ -301,16 +301,16 @@ export default function AnimalsListPage() {
                           addReferencePhoto.variables?.petId === pet.id;
 
                         return (
-                          <div className="mt-4 border-t border-zinc-100 pt-4">
+                          <div className="mt-4 border-t border-border pt-4">
                             <div className="flex items-center justify-between gap-3">
-                              <span className="text-xs font-medium text-zinc-700">
+                              <span className="text-xs font-medium text-foreground">
                                 Fotos de referência
                               </span>
-                              <span className="text-xs tabular-nums text-zinc-400">
+                              <span className="text-xs tabular-nums text-muted-foreground">
                                 {references.length}/{MAX_REFERENCE_PHOTOS}
                               </span>
                             </div>
-                            <p className="mt-1 text-xs leading-5 text-zinc-500">
+                            <p className="mt-1 text-xs leading-5 text-muted-foreground">
                               {references.length === 0
                                 ? "Adicione fotos em outros ângulos para iniciar a identificação."
                                 : references.length < MAX_REFERENCE_PHOTOS
@@ -329,7 +329,7 @@ export default function AnimalsListPage() {
                                 ) : (
                                   <span
                                     key={reference.id}
-                                    className="flex aspect-square items-center justify-center rounded-md bg-zinc-100 text-zinc-400"
+                                    className="flex aspect-square items-center justify-center rounded-md bg-surface-raised text-muted-foreground"
                                     aria-label="Referência sem imagem"
                                   >
                                     <UsersRound className="h-4 w-4" />
@@ -337,7 +337,7 @@ export default function AnimalsListPage() {
                                 ),
                               )}
                               {canAddReference && (
-                                <label className="flex aspect-square cursor-pointer items-center justify-center rounded-md border border-dashed border-zinc-300 text-zinc-500 transition-colors hover:border-zinc-700 hover:text-zinc-900">
+                                <label className="flex aspect-square cursor-pointer items-center justify-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-foreground">
                                   <ImagePlus className="h-4 w-4" />
                                   <span className="sr-only">
                                     Adicionar foto de referência para {pet.name}
@@ -352,13 +352,13 @@ export default function AnimalsListPage() {
                               )}
                             </div>
                             {isAddingReference && (
-                              <p className="mt-3 text-xs text-zinc-500">
+                              <p className="mt-3 text-xs text-muted-foreground">
                                 Preparando referência biométrica...
                               </p>
                             )}
                             {addReferencePhoto.isError &&
                               addReferencePhoto.variables?.petId === pet.id && (
-                                <p className="mt-3 text-xs text-rose-700">
+                                <p className="mt-3 text-xs text-destructive">
                                   {addReferencePhoto.error instanceof Error
                                     ? addReferencePhoto.error.message
                                     : "Não foi possível adicionar a foto de referência."}
@@ -371,7 +371,7 @@ export default function AnimalsListPage() {
                         <button
                           type="button"
                           onClick={() => startEditing(pet)}
-                          className="inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900"
+                          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                           Editar
@@ -380,7 +380,7 @@ export default function AnimalsListPage() {
                           type="button"
                           onClick={() => removePet(pet.id, pet.name)}
                           disabled={deletePet.isPending}
-                          className="inline-flex items-center gap-1.5 text-sm font-medium text-zinc-400 transition-colors hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                           Excluir
