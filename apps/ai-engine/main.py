@@ -6,13 +6,14 @@ from pathlib import Path
 from fastapi import BackgroundTasks, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from ultralytics import YOLO
 from core.detections import normalize_detections, suppress_overlapping_detections
 from core.embedding_routes import create_embedding_router
 from core.embedding_service import ImageEmbeddingService
 from core.identification import TrackIdentificationManager
+from core.presence import PresenceMonitor
 from core.activity import ActivityClassifier
 from core.embeddings import (
     DEFAULT_EMBEDDING_DIMENSIONS,
@@ -93,6 +94,10 @@ last_processing_latency_ms = 0.0
 last_cycle_latency_ms = 0.0
 measured_fps = 0.0
 last_frame_timestamp = None
+DEFAULT_ABSENCE_ALERT_SECONDS = float(os.getenv("DEFAULT_ABSENCE_ALERT_SECONDS", "30"))
+DEFAULT_NOTIFICATION_COOLDOWN_SECONDS = float(
+    os.getenv("DEFAULT_NOTIFICATION_COOLDOWN_SECONDS", "300")
+)
 
 class StreamSourceRequest(BaseModel):
     source: str
@@ -100,6 +105,12 @@ class StreamSourceRequest(BaseModel):
 
 class StreamStartRequest(BaseModel):
     stream_token: str
+    absence_alert_seconds: float = Field(default=DEFAULT_ABSENCE_ALERT_SECONDS, ge=5, le=3600)
+    notification_cooldown_seconds: float = Field(
+        default=DEFAULT_NOTIFICATION_COOLDOWN_SECONDS,
+        ge=0,
+        le=86400,
+    )
 
 
 def masked_camera_source(source: str | int) -> str:
@@ -120,9 +131,10 @@ def masked_camera_source(source: str | int) -> str:
 
 
 # Configurações do Estado de Presença
-SECONDS_TO_CONSIDER_ABSENT = 5.0  # Tempo sem ver o pet para considerar que ele saiu
-last_seen_timestamp = None
-is_pet_currently_present = False
+presence_monitor = PresenceMonitor(
+    absence_alert_seconds=DEFAULT_ABSENCE_ALERT_SECONDS,
+    notification_cooldown_seconds=DEFAULT_NOTIFICATION_COOLDOWN_SECONDS,
+)
 last_tracking_webhook_timestamp = 0.0
 active_stream_token: str | None = None
 latest_detections: list[dict] = []
@@ -131,7 +143,7 @@ latest_frame_height = 0
 recent_events: list[dict] = []
 next_event_id = 1
 current_presence_event_id: int | None = None
-last_identified_pet_names: list[str] = []
+last_identified_pets: list[dict[str, str]] = []
 
 
 def record_monitoring_event(event_type: str, message: str, **details) -> dict:
@@ -163,6 +175,20 @@ def identified_pet_names(detections: list[dict]) -> list[str]:
             and identification["pet_name"].strip()
         )
     )
+
+
+def identified_pets(detections: list[dict]) -> list[dict[str, str]]:
+    """Obtém pets identificados, preservando ID para persistir alertas."""
+    pets_by_id: dict[str, dict[str, str]] = {}
+    for detection in detections:
+        identification = detection.get("identification")
+        if not isinstance(identification, dict) or identification.get("status") != "identified":
+            continue
+        pet_id = identification.get("pet_id")
+        pet_name = identification.get("pet_name")
+        if isinstance(pet_id, str) and isinstance(pet_name, str) and pet_name.strip():
+            pets_by_id[pet_id] = {"id": pet_id, "name": pet_name}
+    return list(pets_by_id.values())
 
 
 def attach_identified_pet_to_events(events: list[dict], detections: list[dict]) -> list[dict]:
@@ -281,7 +307,7 @@ def create_identification_requests(frame, detections: list[dict], timestamp: flo
     return requests_to_match
 
 def process_stream():
-    global last_seen_timestamp, is_pet_currently_present, last_tracking_webhook_timestamp, last_processing_latency_ms, last_cycle_latency_ms, measured_fps, last_frame_timestamp, latest_detections, latest_frame_width, latest_frame_height, current_presence_event_id, last_identified_pet_names
+    global last_tracking_webhook_timestamp, last_processing_latency_ms, last_cycle_latency_ms, measured_fps, last_frame_timestamp, latest_detections, latest_frame_width, latest_frame_height, current_presence_event_id, last_identified_pets
     
     try:
         stream_reader.start()
@@ -352,17 +378,17 @@ def process_stream():
                 for detection in detections
             ]
             pet_names = identified_pet_names(detections)
-            if pet_names:
-                last_identified_pet_names = pet_names
+            current_identified_pets = identified_pets(detections)
+            if current_identified_pets:
+                last_identified_pets = current_identified_pets
             
             pet_detected_in_frame = len(boxes) > 0
 
             if pet_detected_in_frame:
-                last_seen_timestamp = current_time
-                
-                # Transição de estado: Estava ausente e AGORA apareceu
-                if not is_pet_currently_present:
-                    is_pet_currently_present = True
+                presence_transition = presence_monitor.mark_seen(current_time)
+
+                # Transição de estado: estava ausente e agora apareceu.
+                if presence_transition:
                     event = record_monitoring_event(
                         "pet_detected",
                         detected_message(pet_names),
@@ -397,26 +423,37 @@ def process_stream():
                 print(f"[IA Engine] Pet visível no frame | Contagem: {len(boxes)}")
 
             else:
-                # Se o pet já estava sendo monitorado e sumiu
-                if is_pet_currently_present and last_seen_timestamp:
-                    time_since_last_seen = current_time - last_seen_timestamp
-                    
-                    # Transição de estado: Passou do tempo limite sem ver o animal
-                    if time_since_last_seen >= SECONDS_TO_CONSIDER_ABSENT:
-                        is_pet_currently_present = False
-                        record_monitoring_event(
-                            "pet_left",
-                            left_message(last_identified_pet_names),
-                            absent_duration_seconds=round(time_since_last_seen, 1),
-                            pet_names=last_identified_pet_names,
-                        )
-                        current_presence_event_id = None
-                        last_identified_pet_names = []
-                        send_webhook_event("pet_left", {
-                            "message": "Pet não é mais identificado na imagem",
-                            "absent_duration_seconds": round(time_since_last_seen, 1)
-                        })
-                        print(f"[IA Engine] ALERTA: Pet saiu do campo de visão da câmera!")
+                # Após o intervalo configurado, registra uma única ausência por ciclo.
+                absence_transition = presence_monitor.evaluate_absence(current_time)
+                if absence_transition:
+                    pet_names = [pet["name"] for pet in last_identified_pets]
+                    pet_id = (
+                        last_identified_pets[0]["id"]
+                        if len(last_identified_pets) == 1
+                        else None
+                    )
+                    absent_duration_seconds = round(
+                        absence_transition.absent_duration_seconds or 0,
+                        1,
+                    )
+                    message = left_message(pet_names)
+                    record_monitoring_event(
+                        "pet_left",
+                        message,
+                        absent_duration_seconds=absent_duration_seconds,
+                        pet_names=pet_names,
+                        should_notify=absence_transition.should_notify,
+                    )
+                    current_presence_event_id = None
+                    last_identified_pets = []
+                    send_webhook_event("pet_left", {
+                        "message": message,
+                        "absent_duration_seconds": absent_duration_seconds,
+                        "pet_id": pet_id,
+                        "pet_names": pet_names,
+                        "should_notify": absence_transition.should_notify,
+                    })
+                    print(f"[IA Engine] ALERTA: Pet saiu do campo de visão da câmera!")
 
             last_cycle_latency_ms = round((time.perf_counter() - cycle_started) * 1000, 1)
 
@@ -429,8 +466,9 @@ def process_stream():
 def get_status():
     return {
         "status": "online",
-        "pet_present": is_pet_currently_present,
-        "last_seen": last_seen_timestamp,
+        "pet_present": presence_monitor.is_present,
+        "last_seen": presence_monitor.last_seen_at,
+        "absence_alert_seconds": presence_monitor.absence_alert_seconds,
         "sampling_rate": f"{stream_reader.target_fps} FPS",
         "target_fps": stream_reader.target_fps,
         "preview_fps": stream_reader.preview_fps,
@@ -449,9 +487,14 @@ def get_status():
 @app.post("/stream/start")
 def start_stream(request: StreamStartRequest, background_tasks: BackgroundTasks):
     global active_stream_token, last_cycle_latency_ms, last_frame_timestamp, last_processing_latency_ms, measured_fps
+    presence_monitor.configure(
+        request.absence_alert_seconds,
+        request.notification_cooldown_seconds,
+    )
     if stream_reader.is_running:
         return {"message": "Stream já em execução."}
     active_stream_token = request.stream_token
+    presence_monitor.reset()
     last_processing_latency_ms = 0.0
     last_cycle_latency_ms = 0.0
     measured_fps = 0.0

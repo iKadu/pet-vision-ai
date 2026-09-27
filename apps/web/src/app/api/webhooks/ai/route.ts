@@ -28,6 +28,13 @@ const trackingDetectionInput = z.object({
   identification: z.object({ status: z.enum(["identified", "unknown"]), pet_id: z.string().uuid().optional() }).passthrough().optional(),
 });
 const monitoringEventInput = z.object({ event_type: z.literal("activity_changed"), track_id: z.number().int().nonnegative(), pet_id: z.string().uuid().optional(), source: z.string().trim().min(1).max(500), centroid: normalizedPoint, activity: z.unknown().optional() });
+const petLeftEventInput = z.object({
+  message: z.string().trim().min(1).max(500),
+  absent_duration_seconds: z.number().finite().nonnegative(),
+  pet_id: z.string().uuid().nullable().optional(),
+  pet_names: z.array(z.string().trim().min(1).max(100)).max(10).default([]),
+  should_notify: z.boolean(),
+});
 
 const identificationInput = z.object({
   track_id: z.number().int().nonnegative(),
@@ -76,6 +83,26 @@ export async function POST(request: Request) {
     };
 
     const caller = appRouter.createCaller({ auth: null, session: { user: { id: streamUserId } } } as never);
+
+    if (payload.event_type === "pet_left") {
+      const parsed = petLeftEventInput.safeParse(payload.details);
+      if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid absence event" }, { status: 400 });
+      const source = typeof payload.source === "string" ? payload.source.slice(0, 500) : "unknown";
+      const [event] = await caller.pets.recordMonitoringEvents({
+        events: [{
+          petId: parsed.data.pet_id ?? null,
+          eventType: "pet_left",
+          details: {
+            source,
+            message: parsed.data.message,
+            absentDurationSeconds: parsed.data.absent_duration_seconds,
+            petNames: parsed.data.pet_names,
+            shouldNotify: parsed.data.should_notify,
+          },
+        }],
+      });
+      return NextResponse.json({ ...response, totalEvents: 1, eventId: event?.id });
+    }
 
     if (payload.event_type === "pet_monitoring_events") {
       const parsed = z.array(monitoringEventInput).min(1).max(25).safeParse(payload.details?.events);
