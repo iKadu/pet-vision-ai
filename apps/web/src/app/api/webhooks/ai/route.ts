@@ -25,10 +25,9 @@ const trackingDetectionInput = z.object({
   bbox: z.object({ x: z.number().finite().min(0).max(1), y: z.number().finite().min(0).max(1), width: z.number().finite().min(0).max(1), height: z.number().finite().min(0).max(1) }),
   centroid: normalizedPoint,
   activity: z.object({ state: z.enum(["unknown", "active", "resting"]), movement_distance: z.number().finite().nonnegative(), window_seconds: z.number().finite().nonnegative(), samples: z.number().int().nonnegative() }).optional(),
-  risk_zones: z.array(z.object({ id: z.string().min(1).max(100), name: z.string().min(1).max(100) })).optional(),
   identification: z.object({ status: z.enum(["identified", "unknown"]), pet_id: z.string().uuid().optional() }).passthrough().optional(),
 });
-const monitoringEventInput = z.object({ event_type: z.enum(["activity_changed", "zone_entered", "zone_exited"]), track_id: z.number().int().nonnegative(), pet_id: z.string().uuid().optional(), source: z.string().trim().min(1).max(500), centroid: normalizedPoint, activity: z.unknown().optional(), zone: z.unknown().optional() });
+const monitoringEventInput = z.object({ event_type: z.literal("activity_changed"), track_id: z.number().int().nonnegative(), pet_id: z.string().uuid().optional(), source: z.string().trim().min(1).max(500), centroid: normalizedPoint, activity: z.unknown().optional() });
 
 const identificationInput = z.object({
   track_id: z.number().int().nonnegative(),
@@ -81,7 +80,7 @@ export async function POST(request: Request) {
     if (payload.event_type === "pet_monitoring_events") {
       const parsed = z.array(monitoringEventInput).min(1).max(25).safeParse(payload.details?.events);
       if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid monitoring events" }, { status: 400 });
-      const events = await caller.pets.recordMonitoringEvents({ events: parsed.data.map((event) => ({ petId: event.pet_id ?? null, eventType: event.event_type, details: { trackId: event.track_id, source: event.source, centroid: event.centroid, activity: event.activity, zone: event.zone } })) });
+      const events = await caller.pets.recordMonitoringEvents({ events: parsed.data.map((event) => ({ petId: event.pet_id ?? null, eventType: event.event_type, details: { trackId: event.track_id, source: event.source, centroid: event.centroid, activity: event.activity } })) });
       return NextResponse.json({ ...response, totalEvents: events.length });
     }
 
@@ -90,7 +89,7 @@ export async function POST(request: Request) {
       if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid tracking update" }, { status: 400 });
       const source = typeof payload.source === "string" ? payload.source.slice(0, 500) : "unknown";
       const events = [
-        ...parsed.data.detections.map((detection) => ({ petId: detection.identification?.pet_id ?? null, eventType: "detection" as const, confidence: detection.confidence, details: { trackId: detection.track_id, source, bbox: detection.bbox, centroid: detection.centroid, activity: detection.activity, riskZones: detection.risk_zones ?? [] } })),
+        ...parsed.data.detections.map((detection) => ({ petId: detection.identification?.pet_id ?? null, eventType: "detection" as const, confidence: detection.confidence, details: { trackId: detection.track_id, source, bbox: detection.bbox, centroid: detection.centroid, activity: detection.activity } })),
         ...(parsed.data.metrics ? [{ eventType: "metrics" as const, details: { source, totalDetections: parsed.data.detections.length, ...parsed.data.metrics } }] : []),
       ];
       const stored = await caller.pets.recordMonitoringEvents({ events });

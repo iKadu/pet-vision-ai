@@ -36,7 +36,7 @@ const identificationEventInput = z.object({
   }),
 });
 
-const monitoringEventTypes = ["identification", "detection", "metrics", "activity_changed", "zone_entered", "zone_exited"] as const;
+const monitoringEventTypes = ["identification", "detection", "metrics", "activity_changed"] as const;
 const monitoringEventInput = z.object({
   petId: z.string().uuid().nullable().optional(),
   eventType: z.enum(monitoringEventTypes),

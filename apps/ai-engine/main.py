@@ -1,6 +1,5 @@
 import time
 import os
-import json
 import requests
 import cv2
 from pathlib import Path
@@ -23,7 +22,6 @@ from core.embeddings import (
 )
 from core.stream import VideoStreamReader, parse_preview_fps, parse_target_fps
 from core.tracking import TrajectoryManager
-from core.zones import RiskZoneMonitor, parse_risk_zones
 from urllib.parse import urlsplit, urlunsplit
 
 # A configuração local do projeto deve prevalecer sobre valores antigos
@@ -77,16 +75,11 @@ trajectory_manager = TrajectoryManager(
     max_points=int(os.getenv("TRAJECTORY_MAX_POINTS", "120")),
     max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
 )
-try:
-    configured_risk_zones = parse_risk_zones(json.loads(os.getenv("RISK_ZONES", "[]")))
-except (json.JSONDecodeError, ValueError) as error:
-    raise RuntimeError(f"Configuração RISK_ZONES inválida: {error}") from error
 activity_classifier = ActivityClassifier(
     window_seconds=float(os.getenv("ACTIVITY_WINDOW_SECONDS", "10")),
     active_distance_threshold=float(os.getenv("ACTIVITY_ACTIVE_DISTANCE_THRESHOLD", "0.08")),
     max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
 )
-risk_zone_monitor = RiskZoneMonitor(configured_risk_zones)
 identification_manager = TrackIdentificationManager(
     min_interval_seconds=float(os.getenv("IDENTIFICATION_INTERVAL_SECONDS", "1")),
     max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
@@ -323,7 +316,6 @@ def process_stream():
             )
             detections = trajectory_manager.update(detections, current_time)
             detections, activity_events = activity_classifier.update(detections, current_time)
-            detections, zone_events = risk_zone_monitor.update(detections)
             identification_requests = create_identification_requests(frame, detections, current_time)
             if identification_requests:
                 identification_response = send_webhook_event(
@@ -346,15 +338,15 @@ def process_stream():
                             },
                         )
             detections = identification_manager.enrich_detections(detections, current_time)
-            phase5_events = attach_identified_pet_to_events([*activity_events, *zone_events], detections)
-            if phase5_events:
-                for monitoring_event in phase5_events:
+            monitoring_events = attach_identified_pet_to_events(activity_events, detections)
+            if monitoring_events:
+                for monitoring_event in monitoring_events:
                     record_monitoring_event(monitoring_event["event_type"], f"Evento de monitoramento: {monitoring_event['event_type']}", **{key: value for key, value in monitoring_event.items() if key != "event_type"})
-                send_webhook_event("pet_monitoring_events", {"events": phase5_events})
+                send_webhook_event("pet_monitoring_events", {"events": monitoring_events})
             latest_detections = [
                 {
                     key: detection[key]
-                    for key in ("track_id", "bbox", "centroid", "activity", "risk_zones", "identification")
+                    for key in ("track_id", "bbox", "centroid", "activity", "identification")
                     if key in detection
                 }
                 for detection in detections
