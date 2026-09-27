@@ -196,32 +196,14 @@ export default function CamerasPage() {
     const action = running ? "stop" : "start";
     setIsTogglingStream(true);
     try {
-      const tokenResponse =
-        action === "start"
-          ? await fetch("/api/ai/stream-token", { method: "POST" })
-          : null;
-      const tokenResult = tokenResponse
-        ? ((await tokenResponse.json()) as { token?: string; error?: string })
-        : null;
-      if (tokenResponse && (!tokenResponse.ok || !tokenResult?.token)) {
-        throw new Error(
-          tokenResult?.error ?? "Não foi possível autorizar o monitoramento",
-        );
+      if (action === "start") {
+        await activateAiStream(defaultCamera?.source ?? getSourceValue());
+      } else {
+        const response = await fetchEngine("/stream/stop", { method: "POST" });
+        if (!response.ok) {
+          throw new Error("Não foi possível alterar o monitoramento");
+        }
       }
-
-      const response = await fetchEngine(`/stream/${action}`, {
-        method: "POST",
-        headers:
-          action === "start"
-            ? { "Content-Type": "application/json" }
-            : undefined,
-        body:
-          action === "start"
-            ? JSON.stringify({ stream_token: tokenResult?.token })
-            : undefined,
-      });
-      if (!response.ok)
-        throw new Error("Não foi possível alterar o monitoramento");
       setRunning(action === "start");
       setMessage(
         action === "start"

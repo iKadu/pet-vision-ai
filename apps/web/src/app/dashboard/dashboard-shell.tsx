@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { useState } from 'react';
 import { Camera, ChevronRight, Dog, Menu, PawPrint, Settings2, UsersRound, X } from 'lucide-react';
 
@@ -33,7 +34,7 @@ export default function DashboardShell({ children }: Props) {
           {links.map(({ href, label, icon: Icon, active }) => <Link key={href} href={href} aria-current={active ? 'page' : undefined} title={!expanded ? label : undefined} className={cardClass(active)}><span className={`flex items-center ${expanded ? 'gap-3' : 'justify-center w-full'}`}><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-50"><Icon className="h-4 w-4" /></span>{expanded && <span className="text-sm font-medium">{label}</span>}</span>{expanded && <ChevronRight className="h-4 w-4 text-zinc-300" />}</Link>)}
         </nav>
         <div className="mt-auto space-y-2 border-t border-zinc-100 pt-4">
-          <button type="button" title={!expanded ? 'Configurações' : undefined} className={cardClass(false)}><span className={`flex items-center ${expanded ? 'gap-3' : 'justify-center w-full'}`}><span className="flex h-7 w-7 items-center justify-center rounded-md bg-zinc-50"><Settings2 className="h-4 w-4" /></span>{expanded && <span className="text-sm font-medium">Configurações</span>}</span></button>
+          <Link href={'/dashboard/settings' as Route} aria-current={pathname.startsWith('/dashboard/settings') ? 'page' : undefined} title={!expanded ? 'Configurações' : undefined} className={cardClass(pathname.startsWith('/dashboard/settings'))}><span className={`flex items-center ${expanded ? 'gap-3' : 'justify-center w-full'}`}><span className="flex h-7 w-7 items-center justify-center rounded-md bg-zinc-50"><Settings2 className="h-4 w-4" /></span>{expanded && <span className="text-sm font-medium">Configurações</span>}</span>{expanded && <ChevronRight className="h-4 w-4 text-zinc-300" />}</Link>
           <div className={`flex items-center ${expanded ? 'justify-between' : 'justify-center'} rounded-lg px-1 py-1`}><ModeToggle />{expanded && <UserMenu />}</div>
           {!expanded && <div className="flex justify-center"><UserMenu compact /></div>}
         </div>
