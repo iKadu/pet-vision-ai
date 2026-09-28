@@ -31,6 +31,8 @@
 # Environment & local files
 .env*
 !.env.example
+# Imagens enviadas por usuários são dados locais e nunca devem ser publicadas.
+/public/uploads/
 .DS_Store
 *.pem
 *.local

@@ -97,6 +97,21 @@ npm run evaluate:identification
 - `evaluate:identification` avalia as fotos de referência já cadastradas no
   banco. São dados de diagnóstico; o comando não treina um novo modelo.
 
+## Licença, componentes de terceiros e dados de teste
+
+O PetVision AI é distribuído sob a licença **GNU AGPL-3.0**. A escolha
+é necessária porque o AI Engine utiliza código e pesos do Ultralytics YOLO sob
+AGPL-3.0. Portanto, ao redistribuir ou disponibilizar o sistema, mantenha o
+código-fonte completo disponível sob a mesma licença.
+
+As licenças e os avisos dos componentes principais estão em
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Antes de publicar uma nova
+versão, consulte também a model card dos pesos utilizados pelo OpenCLIP.
+
+Fotos de pets, gravações de câmera, nomes, e-mails e arquivos `.env` são dados
+locais. Utilize somente imagens próprias ou autorizadas para demonstração e não
+publique o diretório `apps/web/public/uploads/` nem segredos de ambiente.
+
 ## Problemas frequentes
 
 - **`turbo is not recognized`**: execute `npm install` na raiz após clonar.
