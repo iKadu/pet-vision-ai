@@ -11,6 +11,7 @@
     "dev:web": "turbo run dev -F web --",
     "dev:ai": "cd apps/ai-engine && .venv\\Scripts\\python.exe -m uvicorn main:app --reload --port 8000",
     "test:ai": "cd apps/ai-engine && .venv\\Scripts\\python.exe -m pytest tests",
+    "test:evaluation": "tsx --test scripts/evaluation/identification-metrics.test.ts",
     "build": "turbo run build",
     "check-types": "turbo run check-types",
     "db:push": "turbo run db:push -F @tccpet/db --",
@@ -32,6 +33,7 @@
     "@tccpet/config": "*",
     "@types/node": "^22.20.1",
     "concurrently": "^8.2.2",
+    "tsx": "^4.23.15",
     "turbo": "^2.10.7",
     "typescript": "^6.0.3"
   },

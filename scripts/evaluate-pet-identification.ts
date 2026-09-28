@@ -1,11 +1,17 @@
 import dotenv from "dotenv";
 import path from "node:path";
 
+import {
+  summarizeIdentificationEvaluation,
+  type IdentificationEvaluationResult,
+} from "./evaluation/identification-metrics";
+
 dotenv.config({ path: path.resolve(process.cwd(), "apps/web/.env") });
 
-const [{ db }, { petEmbeddings, pets }, { eq }] = await Promise.all([
+const [{ db }, { petEmbeddings, pets }, { env }, { eq }] = await Promise.all([
   import("@tccpet/db"),
   import("@tccpet/db/schema/pets"),
+  import("@tccpet/env/server"),
   import("drizzle-orm"),
 ]);
 
@@ -13,20 +19,17 @@ type EmbeddingSample = {
   id: string;
   petId: string;
   userId: string;
+  petName: string;
   species: string;
   values: number[];
   modelName: string;
   pretrainedWeights: string;
 };
 
-type EvaluationResult = {
-  actualPetId: string;
-  predictedPetId: string;
+type EvaluationResult = IdentificationEvaluationResult & {
   bestNegativeSimilarity: number | null;
   positiveSimilarity: number;
-  topSimilarity: number;
   runnerUpSimilarity: number | null;
-  decisionMargin: number | null;
 };
 
 function cosineSimilarity(left: number[], right: number[]) {
@@ -51,6 +54,7 @@ const rawSamples = await db
     id: petEmbeddings.id,
     petId: petEmbeddings.petId,
     userId: pets.userId,
+    petName: pets.name,
     species: pets.species,
     values: petEmbeddings.embedding,
     modelName: petEmbeddings.modelName,
@@ -68,6 +72,7 @@ const samples = rawSamples.filter(
 
 const results: EvaluationResult[] = [];
 let skippedWithoutPair = 0;
+const petNames = new Map(samples.map((sample) => [sample.petId, sample.petName]));
 
 for (const query of samples) {
   const gallery = samples.filter(
@@ -105,7 +110,9 @@ for (const query of samples) {
 
   results.push({
     actualPetId: query.petId,
+    actualPetName: query.petName,
     predictedPetId,
+    predictedPetName: petNames.get(predictedPetId) ?? predictedPetId,
     positiveSimilarity,
     topSimilarity,
     runnerUpSimilarity,
@@ -122,6 +129,10 @@ for (const query of samples) {
 const correct = results.filter(
   (result) => result.actualPetId === result.predictedPetId,
 );
+const decisionSummary = summarizeIdentificationEvaluation(results, {
+  similarity: env.PET_MATCH_MIN_SIMILARITY,
+  margin: env.PET_MATCH_MIN_MARGIN,
+});
 const positiveScores = results.map((result) => result.positiveSimilarity);
 const negativeScores = results
   .map((result) => result.bestNegativeSimilarity)
@@ -150,6 +161,13 @@ if (results.length === 0) {
   console.log("Cadastre pelo menos duas fotos de referência para cada pet a ser avaliado.");
 } else {
   console.log(`Top-1 correto: ${((correct.length / results.length) * 100).toFixed(1)}%`);
+  console.log(
+    `Confirmados corretamente: ${decisionSummary.confirmedCorrect}/${decisionSummary.queries}`,
+  );
+  console.log(`Identificações incorretas confirmadas: ${decisionSummary.falseIdentifications}`);
+  console.log(`Casos ambíguos: ${decisionSummary.ambiguous}`);
+  console.log(`Consultas rejeitadas: ${decisionSummary.rejected}`);
+  console.log(`Acertos Top-1 não confirmados: ${decisionSummary.correctButNotConfirmed}`);
   console.log(`Similaridade positiva mediana: ${formatScore(median(positiveScores))}`);
   console.log(`Menor similaridade positiva: ${formatScore(weakestPositive)}`);
   console.log(`Maior similaridade negativa: ${formatScore(strongestNegative)}`);
@@ -191,5 +209,13 @@ if (results.length === 0) {
     console.log(
       "Ainda não há erros Top-1 para calibrar a margem; use o valor inicial conservador e amplie a base de teste.",
     );
+  }
+
+  console.log("\nMatriz de confusão (pet real → previsão):");
+  for (const row of decisionSummary.confusionMatrix) {
+    const predictions = row.predictions
+      .map((prediction) => `${prediction.petName}: ${prediction.count}`)
+      .join(" | ");
+    console.log(`- ${row.actualPetName} → ${predictions}`);
   }
 }
