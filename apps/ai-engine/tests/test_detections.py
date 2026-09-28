@@ -1,6 +1,10 @@
 import unittest
 
 from core.detections import normalize_detections, suppress_overlapping_detections
+from core.detection_settings import (
+    parse_detection_confidence_threshold,
+    parse_detection_image_size,
+)
 
 
 class Value:
@@ -57,6 +61,30 @@ class NormalizeDetectionsTests(unittest.TestCase):
         result = suppress_overlapping_detections(detections)
 
         self.assertEqual(result, [detections[0], detections[2]])
+
+    def test_suppresses_partially_overlapping_boxes_at_the_runtime_threshold(self):
+        detections = [
+            {"class_id": 16, "confidence": 0.95, "bbox": {"x": 0.2, "y": 0.2, "width": 0.4, "height": 0.4}},
+            {"class_id": 16, "confidence": 0.82, "bbox": {"x": 0.3, "y": 0.2, "width": 0.4, "height": 0.4}},
+        ]
+
+        result = suppress_overlapping_detections(detections, iou_threshold=0.55)
+
+        self.assertEqual(result, [detections[0]])
+
+    def test_parses_a_yolo_compatible_detection_image_size(self):
+        self.assertEqual(parse_detection_image_size(None), 768)
+        self.assertEqual(parse_detection_image_size("640"), 640)
+
+        with self.assertRaises(ValueError):
+            parse_detection_image_size("641")
+
+    def test_parses_a_detection_confidence_threshold(self):
+        self.assertEqual(parse_detection_confidence_threshold(None), 0.18)
+        self.assertEqual(parse_detection_confidence_threshold("0.25"), 0.25)
+
+        with self.assertRaises(ValueError):
+            parse_detection_confidence_threshold("1")
 
 
 if __name__ == "__main__":

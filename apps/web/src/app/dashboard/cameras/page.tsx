@@ -17,7 +17,8 @@ import {
 
 import { trpc } from "@/utils/trpc";
 import { activateAiStream, AI_ENGINE_URL } from "@/lib/ai-stream";
-import { identificationDisplay, type StreamDetection } from "@/lib/identification-display";
+import { StreamDetectionOverlay } from "@/components/stream-detection-overlay";
+import { type StreamDetection } from "@/lib/identification-display";
 
 const ENGINE_URL = AI_ENGINE_URL;
 const ENGINE_REQUEST_TIMEOUT_MS = 5_000;
@@ -328,126 +329,11 @@ export default function CamerasPage() {
                       alt={`Pré-visualização da câmera padrão${defaultCamera ? `: ${defaultCamera.name}` : ""}`}
                       className="absolute inset-0 h-full w-full object-contain"
                     />
-                    <svg
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 h-full w-full"
-                      viewBox={`0 0 ${frameWidth} ${frameHeight}`}
-                      preserveAspectRatio="xMidYMid meet"
-                    >
-                      {streamDetections.map((detection, index) => {
-                        const display = identificationDisplay(detection);
-                        const boxX = detection.bbox.x * frameWidth;
-                        const boxY = detection.bbox.y * frameHeight;
-                        const boxWidth = detection.bbox.width * frameWidth;
-                        const boxHeight = detection.bbox.height * frameHeight;
-                        const labelHeight = Math.min(
-                          Math.max(frameHeight * 0.12, 66),
-                          86,
-                        );
-                        const labelWidth = Math.min(
-                          Math.max(174, 132 + display.name.length * 6),
-                          Math.max(174, frameWidth - 8),
-                        );
-                        const labelX = Math.min(
-                          Math.max(4, boxX),
-                          Math.max(4, frameWidth - labelWidth - 4),
-                        );
-                        const labelY =
-                          boxY - labelHeight - 8 >= 4
-                            ? boxY - labelHeight - 8
-                            : Math.min(boxY + 6, frameHeight - labelHeight - 4);
-                        const statusFontSize = Math.min(
-                          Math.max(frameHeight * 0.018, 10),
-                          14,
-                        );
-                        const nameFontSize = Math.min(
-                          Math.max(frameHeight * 0.028, 14),
-                          20,
-                        );
-                        const detailFontSize = Math.min(
-                          Math.max(frameHeight * 0.018, 10),
-                          14,
-                        );
-                        const overlayTransition = {
-                          transition:
-                            "x 180ms cubic-bezier(0.16, 1, 0.3, 1), y 180ms cubic-bezier(0.16, 1, 0.3, 1), width 180ms cubic-bezier(0.16, 1, 0.3, 1), height 180ms cubic-bezier(0.16, 1, 0.3, 1)",
-                        };
-
-                        return (
-                          <g key={detection.track_id ?? index}>
-                            <rect
-                              x={boxX}
-                              y={boxY}
-                              width={boxWidth}
-                              height={boxHeight}
-                              rx="7"
-                              fill={display.accent}
-                              fillOpacity="0.08"
-                              stroke="#09090b"
-                              strokeOpacity="0.9"
-                              strokeWidth="7"
-                              vectorEffect="non-scaling-stroke"
-                              style={overlayTransition}
-                            />
-                            <rect
-                              x={boxX}
-                              y={boxY}
-                              width={boxWidth}
-                              height={boxHeight}
-                              rx="7"
-                              fill="none"
-                              stroke={display.accent}
-                              strokeWidth="2.5"
-                              vectorEffect="non-scaling-stroke"
-                              style={overlayTransition}
-                            />
-                            <rect
-                              x={labelX}
-                              y={labelY}
-                              width={labelWidth}
-                              height={labelHeight}
-                              rx="8"
-                              fill="#09090b"
-                              fillOpacity="0.94"
-                              stroke={display.accent}
-                              strokeOpacity="0.55"
-                              strokeWidth="1"
-                              style={overlayTransition}
-                            />
-                            <text
-                              x={labelX + 14}
-                              y={labelY + 19}
-                              fill={display.accent}
-                              fontSize={statusFontSize}
-                              fontWeight="600"
-                              letterSpacing="0.8"
-                            >
-                              {display.status.toUpperCase()}
-                            </text>
-                            <text
-                              x={labelX + 14}
-                              y={labelY + 42}
-                              fill="#ffffff"
-                              fontSize={nameFontSize}
-                              fontWeight="700"
-                            >
-                              {display.status === "Identificado"
-                                ? `Nome: ${display.name}`
-                                : display.name}
-                            </text>
-                            <text
-                              x={labelX + 14}
-                              y={labelY + labelHeight - 12}
-                              fill="#a1a1aa"
-                              fontSize={detailFontSize}
-                              fontWeight="500"
-                            >
-                              {display.detail}
-                            </text>
-                          </g>
-                        );
-                      })}
-                    </svg>
+                    <StreamDetectionOverlay
+                      detections={streamDetections}
+                      frameWidth={frameWidth}
+                      frameHeight={frameHeight}
+                    />
                     <div
                       aria-live="polite"
                       className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-black/70 px-3 py-2 text-xs font-medium text-zinc-200 shadow-lg shadow-black/20 backdrop-blur-sm"

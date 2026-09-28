@@ -10,6 +10,10 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from ultralytics import YOLO
 from core.detections import normalize_detections, suppress_overlapping_detections
+from core.detection_settings import (
+    parse_detection_confidence_threshold,
+    parse_detection_image_size,
+)
 from core.embedding_routes import create_embedding_router
 from core.embedding_service import ImageEmbeddingService
 from core.identification import TrackIdentificationManager
@@ -56,6 +60,10 @@ app.include_router(create_embedding_router(embedding_service))
 # A origem pode ser um índice de webcam (ex.: "0"), "screen" ou uma URL RTSP/HTTP.
 camera_source = os.getenv("CAMERA_SOURCE", "0")
 STREAM_TARGET_FPS = parse_target_fps(os.getenv("STREAM_TARGET_FPS"))
+DETECTION_IMAGE_SIZE = parse_detection_image_size(os.getenv("DETECTION_IMAGE_SIZE"))
+DETECTION_CONFIDENCE_THRESHOLD = parse_detection_confidence_threshold(
+    os.getenv("DETECTION_CONFIDENCE_THRESHOLD")
+)
 STREAM_PREVIEW_FPS = parse_preview_fps(os.getenv("STREAM_PREVIEW_FPS"))
 stream_reader = VideoStreamReader(
     source=camera_source,
@@ -82,12 +90,12 @@ activity_classifier = ActivityClassifier(
     max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
 )
 identification_manager = TrackIdentificationManager(
-    min_interval_seconds=float(os.getenv("IDENTIFICATION_INTERVAL_SECONDS", "1")),
+    min_interval_seconds=float(os.getenv("IDENTIFICATION_INTERVAL_SECONDS", "0.5")),
     max_idle_seconds=float(os.getenv("TRACK_MAX_IDLE_SECONDS", "30")),
 )
 IDENTIFICATION_MIN_CROP_SIZE = int(os.getenv("IDENTIFICATION_MIN_CROP_SIZE", "96"))
 DETECTION_DUPLICATE_IOU_THRESHOLD = float(
-    os.getenv("DETECTION_DUPLICATE_IOU_THRESHOLD", "0.7")
+    os.getenv("DETECTION_DUPLICATE_IOU_THRESHOLD", "0.55")
 )
 TRACKING_WEBHOOK_INTERVAL_SECONDS = float(os.getenv("TRACKING_WEBHOOK_INTERVAL_SECONDS", "1"))
 last_processing_latency_ms = 0.0
@@ -329,6 +337,8 @@ def process_stream():
                 classes=list(TARGET_CLASSES.keys()),
                 tracker=str(BYTETRACK_CONFIG),
                 persist=True,
+                imgsz=DETECTION_IMAGE_SIZE,
+                conf=DETECTION_CONFIDENCE_THRESHOLD,
                 verbose=False,
             )
             last_processing_latency_ms = round((time.perf_counter() - inference_started) * 1000, 1)

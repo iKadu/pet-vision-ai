@@ -6,7 +6,7 @@ from threading import Event, Lock, Thread, current_thread
 from typing import Generator, Optional
 
 
-DEFAULT_TARGET_FPS = 2.0
+DEFAULT_TARGET_FPS = 5.0
 DEFAULT_PREVIEW_FPS = 15.0
 MIN_TARGET_FPS = 0.5
 MAX_TARGET_FPS = 30.0
