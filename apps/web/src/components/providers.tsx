@@ -6,20 +6,21 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 import { queryClient } from "@/utils/trpc";
 
-import { ThemeProvider } from "./theme-provider";
+import { ThemeProvider, useTheme } from "./theme-provider";
+
+function ThemeAwareToaster() {
+  const { resolvedTheme } = useTheme();
+
+  return <Toaster richColors theme={resolvedTheme} />;
+}
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="light"
-      enableSystem
-      disableTransitionOnChange
-    >
+    <ThemeProvider defaultTheme="light" enableSystem>
       <QueryClientProvider client={queryClient}>
         {children}
         <ReactQueryDevtools />
-        <Toaster richColors />
+        <ThemeAwareToaster />
       </QueryClientProvider>
     </ThemeProvider>
   );

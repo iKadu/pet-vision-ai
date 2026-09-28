@@ -8,8 +8,9 @@ import {
   DropdownMenuTrigger,
 } from "@tccpet/ui/components/dropdown-menu";
 import { Check, LaptopMinimal, Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
+
+import { useTheme } from "./theme-provider";
 
 const themeOptions = [
   { value: "light", label: "Claro", icon: Sun },
