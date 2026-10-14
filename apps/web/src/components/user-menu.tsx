@@ -26,7 +26,7 @@ export default function UserMenu({ compact = false }: { compact?: boolean }) {
   if (!session) {
     return (
       <Link href="/login">
-        <Button variant="outline">Sign In</Button>
+        <Button variant="outline">Entrar</Button>
       </Link>
     );
   }
@@ -40,8 +40,8 @@ export default function UserMenu({ compact = false }: { compact?: boolean }) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" className="h-9 gap-2 rounded-lg px-2 text-muted-foreground hover:bg-accent hover:text-foreground" />}>
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">{initials}</span>
+      <DropdownMenuTrigger render={<Button variant="ghost" className="h-10 gap-2 rounded-xl px-2 text-muted-foreground hover:bg-accent hover:text-foreground" />}>
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground shadow-sm">{initials}</span>
         {!compact && <span className="hidden max-w-32 truncate text-sm font-medium sm:inline">{session.user.name}</span>}
         {!compact && <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
       </DropdownMenuTrigger>
@@ -75,7 +75,7 @@ export default function UserMenu({ compact = false }: { compact?: boolean }) {
             }}
           >
             <LogOut className="h-4 w-4" />
-            Sign Out
+            Sair
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>

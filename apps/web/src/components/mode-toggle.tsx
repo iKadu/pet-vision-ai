@@ -31,7 +31,7 @@ export function ModeToggle() {
   }, [selectedTheme]);
   const TriggerIcon = selectedTheme === "system"
     ? LaptopMinimal
-    : resolvedTheme === "dark"
+    : selectedTheme === "dark"
       ? Moon
       : Sun;
 
@@ -43,7 +43,7 @@ export function ModeToggle() {
             type="button"
             variant="ghost"
             size="icon"
-            className="shrink-0 rounded-full border border-border bg-card text-primary shadow-sm transition-[background-color,border-color,color,box-shadow] hover:border-primary/50 hover:bg-accent hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="shrink-0 rounded-full border border-primary/20 bg-card text-primary shadow-[0_5px_16px_color-mix(in_oklch,var(--primary)_12%,transparent)] transition-[background-color,border-color,color,box-shadow] hover:border-primary/50 hover:bg-accent hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/40"
             aria-label={triggerLabel}
             title={triggerLabel}
           />
