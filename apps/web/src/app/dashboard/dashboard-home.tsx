@@ -1,20 +1,60 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, Bell, Check, Clock3, Dog, Wifi } from 'lucide-react';
+import {
+  Activity,
+  ArrowUpRight,
+  Bell,
+  Camera,
+  Check,
+  Clock3,
+  Dog,
+  Gauge,
+  History,
+  Radio,
+  Wifi,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
-import { trpc } from '@/utils/trpc';
-import { activateAiStream, AI_ENGINE_URL } from '@/lib/ai-stream';
 import { StreamDetectionOverlay } from '@/components/stream-detection-overlay';
 import { type StreamDetection } from '@/lib/identification-display';
+import { activateAiStream, AI_ENGINE_URL } from '@/lib/ai-stream';
+import { trpc } from '@/utils/trpc';
 
 type EventKind = 'pet_detected' | 'pet_left';
 type Filter = 'all' | 'alerts';
-type EventItem = { id: number; kind: EventKind; time: Date; message: string; duration: string; petNames?: string[] };
-type EngineEvent = { id: number; kind: EventKind; timestamp: number; message: string; absent_duration_seconds?: number; pet_names?: string[] };
-type EngineStatus = { status: string; pet_present: boolean; sampling_rate?: string; last_seen?: string | number | null; stream_running?: boolean; camera_source?: string; fps?: number; latency_ms?: number; detections?: StreamDetection[]; frame_width?: number; frame_height?: number; recent_events?: EngineEvent[] };
+type EventItem = {
+  id: number;
+  kind: EventKind;
+  time: Date;
+  message: string;
+  duration: string;
+  petNames?: string[];
+};
+type EngineEvent = {
+  id: number;
+  kind: EventKind;
+  timestamp: number;
+  message: string;
+  absent_duration_seconds?: number;
+  pet_names?: string[];
+};
+type EngineStatus = {
+  status: string;
+  pet_present: boolean;
+  sampling_rate?: string;
+  last_seen?: string | number | null;
+  stream_running?: boolean;
+  camera_source?: string;
+  fps?: number;
+  latency_ms?: number;
+  detections?: StreamDetection[];
+  frame_width?: number;
+  frame_height?: number;
+  recent_events?: EngineEvent[];
+};
 type PersistedEventKind = 'pet_left' | 'identification' | 'activity_changed';
 type PersistedEventItem = {
   id: string;
@@ -27,26 +67,30 @@ type PersistedEventItem = {
 };
 
 const ENGINE_URL = AI_ENGINE_URL;
+
 function formatClock(date: Date) {
-  return [date.getHours(), date.getMinutes(), date.getSeconds()].map((part) => String(part).padStart(2, '0')).join(':');
+  return [date.getHours(), date.getMinutes(), date.getSeconds()]
+    .map((part) => String(part).padStart(2, '0'))
+    .join(':');
 }
 
 function relativeTime(date: Date | null) {
-  if (!date) return 'No recent activity';
-  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
-  if (seconds < 10) return 'Just now';
-  if (seconds < 60) return `${seconds} seconds ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
+  if (!date) return 'Sem atividade recente';
 
-function EventIcon({ kind }: { kind: EventKind }) {
-  return kind === 'pet_detected' ? <Dog className="h-4 w-4" /> : <Bell className="h-4 w-4" />;
+  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  if (seconds < 10) return 'Agora mesmo';
+  if (seconds < 60) return `Há ${seconds} s`;
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `Há ${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Há ${hours} h`;
+
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `Há ${days} d`;
+
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
 
 function eventDetails(value: unknown) {
@@ -61,11 +105,26 @@ function stringList(value: unknown) {
     : [];
 }
 
-function Stat({ label, value, detail, icon, tone }: { label: string; value: string; detail: string; icon: React.ReactNode; tone: string }) {
+function Metric({
+  label,
+  value,
+  detail,
+  icon,
+  tone = 'text-primary',
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: React.ReactNode;
+  tone?: string;
+}) {
   return (
-    <article className="border-b border-border bg-card p-5 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
-      <div className="flex items-start justify-between gap-4"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p><span className={`flex h-8 w-8 items-center justify-center rounded-lg bg-surface-raised ${tone}`}>{icon}</span></div>
-      <p className="mt-5 whitespace-nowrap text-xl font-semibold tracking-tight text-card-foreground sm:text-2xl">{value}</p>
+    <article className="rounded-2xl border border-border/80 bg-card/75 p-4 shadow-[0_1px_2px_oklch(0_0_0_/_0.025)] backdrop-blur-sm">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+        <span className={`flex h-8 w-8 items-center justify-center rounded-xl bg-surface-raised ${tone}`}>{icon}</span>
+      </div>
+      <p className="mt-5 text-xl font-semibold tracking-[-0.035em] text-card-foreground">{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
     </article>
   );
@@ -81,6 +140,7 @@ export default function DashboardHome() {
   const [detections, setDetections] = useState<StreamDetection[]>([]);
   const [frameSize, setFrameSize] = useState({ width: 16, height: 9 });
   const [filter, setFilter] = useState<Filter>('all');
+
   const defaultCameraQuery = useQuery(trpc.cameras.getDefault.queryOptions());
   const petsQuery = useQuery(trpc.pets.list.queryOptions());
   const preferencesQuery = useQuery(trpc.monitoringPreferences.get.queryOptions());
@@ -91,6 +151,7 @@ export default function DashboardHome() {
     }),
     refetchInterval: 3_000,
   });
+
   const synchronizedDefaultCamera = useRef<string | null>(null);
   const hasHydratedAlerts = useRef(false);
   const latestAlertId = useRef<string | null>(null);
@@ -104,6 +165,7 @@ export default function DashboardHome() {
     try {
       const response = await fetch(`${ENGINE_URL}/status`, { cache: 'no-store' });
       if (!response.ok) throw new Error('Engine unavailable');
+
       const data = (await response.json()) as EngineStatus;
       setOnline(true);
       setPresent(data.pet_present);
@@ -142,6 +204,7 @@ export default function DashboardHome() {
     const camera = defaultCamera;
     let cancelled = false;
     synchronizedDefaultCamera.current = camera.id;
+
     async function activateDefaultCamera() {
       try {
         await activateAiStream(camera.source);
@@ -221,14 +284,12 @@ export default function DashboardHome() {
     toast.warning('Alerta de ausência', { description: latestAlert.message });
 
     if (
-      latestAlert.shouldNotify &&
-      preferencesQuery.data?.browserNotificationsEnabled &&
-      'Notification' in window &&
-      Notification.permission === 'granted'
+      latestAlert.shouldNotify
+      && preferencesQuery.data?.browserNotificationsEnabled
+      && 'Notification' in window
+      && Notification.permission === 'granted'
     ) {
-      new Notification('PetVision · alerta de ausência', {
-        body: latestAlert.message,
-      });
+      new Notification('PetVision · alerta de ausência', { body: latestAlert.message });
     }
   }, [persistedEvents, preferencesQuery.data?.browserNotificationsEnabled]);
 
@@ -241,26 +302,208 @@ export default function DashboardHome() {
   const detectionCount = events.filter((event) => event.kind === 'pet_detected').length;
   const lastEvent = events[0] ?? persistedEvents[0];
   const identifiedCount = detections.filter((detection) => detection.identification?.status === 'identified').length;
+  const cameraLabel = defaultCamera ? `${defaultCamera.name} · câmera padrão` : 'Nenhuma câmera padrão definida';
 
   return (
     <div className="min-h-screen text-foreground">
-      <div className="min-w-0">
-        <div className="mx-auto max-w-[1280px] px-5 py-8 sm:px-8 lg:px-10">
-          <header className="mb-8 border-b border-border pb-7"><div className="flex items-end justify-between gap-5"><div><h1 className="text-3xl font-semibold tracking-[-0.03em] text-foreground">Início</h1><p className="mt-2 text-sm text-muted-foreground">O estado da sua casa, em um só lugar.</p></div><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${online ? 'border-success/25 bg-success/10 text-success' : 'border-border bg-surface-raised text-muted-foreground'}`}><span className={`h-1.5 w-1.5 rounded-full ${online ? 'bg-success' : 'bg-muted-foreground'}`} />{online ? 'Motor conectado' : 'Motor offline'}</span></div></header>
-          <section className="mb-7 grid overflow-hidden rounded-xl border border-border shadow-sm sm:grid-cols-2 xl:grid-cols-4">
-            <Stat label="Presença" value={present ? 'Presente' : 'Ausente'} detail={present ? 'Pet visível recentemente' : 'Nenhuma presença recente'} tone={present ? 'text-success' : 'text-destructive'} icon={<span className={`h-2.5 w-2.5 rounded-full ${present ? 'bg-success' : 'bg-destructive'}`} />} />
-            <Stat label="Última detecção" value={relativeTime(lastSeen)} detail={lastEvent ? formatClock(lastEvent.time) : 'Sem registro'} tone="text-info" icon={<Clock3 className="h-4 w-4" />} />
-            <Stat label="Detecções" value={String(detectionCount)} detail="Nesta sessão" tone="text-warning" icon={<Activity className="h-4 w-4" />} />
-            <Stat label="Sistema" value={online ? 'Online' : 'Offline'} detail={online ? 'Recebendo atualizações' : 'Inicie o motor local'} tone={online ? 'text-success' : 'text-muted-foreground'} icon={<Wifi className="h-4 w-4" />} />
-          </section>
+      <div className="mx-auto max-w-[1440px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
+        <header className="mb-8 flex flex-col gap-5 border-b border-border/80 pb-7 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">Central de monitoramento</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-foreground sm:text-4xl">Visão geral</h1>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Acompanhe a presença, o reconhecimento e os alertas da sua casa em tempo real.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className={`inline-flex h-8 items-center gap-2 rounded-full border px-3 text-[10px] font-semibold uppercase tracking-[0.13em] ${online ? 'border-success/25 bg-success/10 text-success' : 'border-border bg-surface-raised text-muted-foreground'}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${online ? 'animate-pulse bg-success' : 'bg-muted-foreground'}`} />
+              {online ? 'Motor conectado' : 'Motor offline'}
+            </span>
+            <Link href="/dashboard/cameras" className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary px-3.5 text-xs font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover">
+              <Camera className="h-3.5 w-3.5" />
+              Gerenciar câmeras
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </header>
 
-          <section className="mb-7 overflow-hidden rounded-xl border border-border bg-zinc-950 shadow-sm"><div className="flex items-center justify-between border-b border-white/10 px-5 py-4"><div><h2 className="font-semibold text-white">Feed ao vivo</h2><p className="mt-1 text-xs text-zinc-500">{defaultCamera ? `${defaultCamera.name} · câmera padrão` : 'Defina uma câmera padrão em Câmeras para iniciar o feed automaticamente'}</p></div><span className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400"><span className={`h-1.5 w-1.5 rounded-full ${streamRunning ? 'bg-[#2dd4bf]' : 'bg-zinc-600'}`} />{streamRunning ? 'Motor conectado' : 'Aguardando stream'}</span></div><div className="relative flex aspect-video max-h-[520px] items-center justify-center overflow-hidden bg-[#10151a]">{streamRunning ? <><img src={`${ENGINE_URL}/stream/video`} alt="Feed ao vivo com detecções do motor de IA" className="absolute inset-0 h-full w-full object-contain" /><StreamDetectionOverlay detections={detections} frameWidth={frameSize.width} frameHeight={frameSize.height} /><div aria-live="polite" className="pointer-events-none absolute right-4 top-4 rounded-md bg-black/70 px-3 py-2 text-xs font-medium text-zinc-200 shadow-lg shadow-black/20 backdrop-blur-sm">{detections.length === 0 ? 'Aguardando animal' : `${identifiedCount} identificado${identifiedCount === 1 ? '' : 's'} · ${detections.length} detectado${detections.length === 1 ? '' : 's'}`}</div></> : <div className="text-center"><Wifi className="mx-auto h-8 w-8 text-zinc-600" /><p className="mt-3 text-sm text-zinc-400">{defaultCamera ? 'Preparando a câmera padrão...' : 'Defina uma câmera padrão na página Câmeras.'}</p></div>}<div className="absolute bottom-4 left-4 rounded-md bg-black/70 px-3 py-2 font-mono text-xs text-zinc-300">{engineMetrics.fps.toFixed(2)} FPS <span className="mx-1 text-zinc-600">|</span> {engineMetrics.latencyMs.toFixed(1)} ms</div></div></section>
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.72fr)]">
+          <article className="overflow-hidden rounded-[28px] border border-[#253336] bg-[#091113] shadow-[0_22px_50px_oklch(0_0_0_/_0.18)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-[#7ee8db]">
+                  <Radio className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold text-white">Transmissão ao vivo</h2>
+                  <p className="mt-0.5 truncate text-xs text-zinc-500">{cameraLabel}</p>
+                </div>
+              </div>
+              <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.13em] ${streamRunning ? 'border-[#2dd4bf]/30 bg-[#2dd4bf]/10 text-[#67e8d8]' : 'border-white/10 bg-white/[0.04] text-zinc-500'}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${streamRunning ? 'animate-pulse bg-[#2dd4bf]' : 'bg-zinc-600'}`} />
+                {streamRunning ? 'Ao vivo' : 'Em espera'}
+              </span>
+            </div>
 
-          <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"><div className="flex flex-col gap-4 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-semibold text-card-foreground">Eventos recentes</h2><p className="mt-1 text-xs text-muted-foreground">Histórico persistido do monitoramento</p></div><div className="flex rounded-lg border border-border p-0.5 text-[11px]"><button type="button" onClick={() => setFilter('all')} className={`rounded-md px-2.5 py-1.5 ${filter === 'all' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-surface-raised'}`}>Tudo</button><button type="button" onClick={() => setFilter('alerts')} className={`rounded-md px-2.5 py-1.5 ${filter === 'alerts' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-surface-raised'}`}>Alertas</button></div></div><div className="grid divide-y divide-border md:grid-cols-2 md:divide-x md:divide-y-0">{visibleEvents.slice(0, 6).map((event) => <div key={event.id} className="flex gap-3 px-5 py-4"><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${event.kind === 'pet_left' ? 'bg-destructive/10 text-destructive' : event.kind === 'identification' ? 'bg-success/10 text-success' : 'bg-info/10 text-info'}`}><EventIcon kind={event.kind === 'pet_left' ? 'pet_left' : 'pet_detected'} /></div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><p className="text-sm font-medium text-foreground">{event.label}</p><time className="shrink-0 font-mono text-[10px] text-muted-foreground">{formatClock(event.time)}</time></div><p className="mt-1 text-xs leading-5 text-muted-foreground">{event.message}</p></div></div>)}{visibleEvents.length === 0 && <p className="col-span-full px-5 py-10 text-center text-sm text-muted-foreground">Ainda não há eventos persistidos neste período.</p>}</div><div className="border-t border-border px-5 py-3 text-center text-[11px] text-muted-foreground">Atualizado automaticamente durante o monitoramento</div></section>
+            <div className="relative flex aspect-video min-h-[280px] items-center justify-center overflow-hidden bg-[#111b1d]">
+              {streamRunning ? (
+                <>
+                  <img src={`${ENGINE_URL}/stream/video`} alt="Feed ao vivo com detecções do motor de IA" className="absolute inset-0 h-full w-full object-contain" />
+                  <StreamDetectionOverlay detections={detections} frameWidth={frameSize.width} frameHeight={frameSize.height} />
+                  <div aria-live="polite" className="pointer-events-none absolute left-4 top-4 rounded-xl border border-white/10 bg-black/65 px-3 py-2 text-xs font-medium text-zinc-100 shadow-lg shadow-black/20 backdrop-blur-md">
+                    {detections.length === 0 ? 'Aguardando animal no enquadramento' : `${identifiedCount} identificado${identifiedCount === 1 ? '' : 's'} · ${detections.length} detectado${detections.length === 1 ? '' : 's'}`}
+                  </div>
+                </>
+              ) : (
+                <div className="max-w-xs px-6 text-center">
+                  <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-500">
+                    <Wifi className="h-6 w-6" />
+                  </span>
+                  <p className="mt-4 text-sm font-medium text-zinc-200">{defaultCamera ? 'Preparando a transmissão' : 'Nenhuma câmera selecionada'}</p>
+                  <p className="mt-2 text-xs leading-5 text-zinc-500">{defaultCamera ? 'O motor iniciará a fonte padrão assim que estiver disponível.' : 'Defina uma câmera padrão para iniciar o monitoramento automaticamente.'}</p>
+                  {!defaultCamera && <Link href="/dashboard/cameras" className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-[#67e8d8] hover:text-white">Configurar câmera <ArrowUpRight className="h-3.5 w-3.5" /></Link>}
+                </div>
+              )}
 
-          <section className="mt-7 overflow-hidden rounded-xl border border-border bg-card shadow-sm"><div className="border-b border-border px-5 py-4"><h2 className="font-semibold text-card-foreground">Histórico</h2><p className="mt-1 text-xs text-muted-foreground">Registros mantidos mesmo após atualizar a página</p></div><div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-sm"><thead className="bg-surface-raised text-[10px] uppercase tracking-[0.14em] text-muted-foreground"><tr><th className="px-5 py-3 font-semibold">Horário</th><th className="px-5 py-3 font-semibold">Evento</th><th className="px-5 py-3 font-semibold">Ausência</th><th className="px-5 py-3 font-semibold">Estado</th></tr></thead><tbody>{persistedEvents.slice(0, 10).map((event) => <tr key={`history-${event.id}`} className="border-t border-border"><td className="px-5 py-3.5 font-mono text-xs text-muted-foreground">{formatClock(event.time)}</td><td className="px-5 py-3.5 text-xs font-medium text-foreground">{event.label}</td><td className="px-5 py-3.5 text-xs text-muted-foreground">{event.duration}</td><td className="px-5 py-3.5"><span className={`inline-flex items-center gap-1.5 text-xs font-medium ${event.kind === 'pet_left' ? event.shouldNotify ? 'text-destructive' : 'text-warning' : 'text-success'}`}>{event.kind === 'pet_left' ? <Bell className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}{event.kind === 'pet_left' ? event.shouldNotify ? 'Alerta liberado' : 'Registrado' : 'Registrado'}</span></td></tr>)}{persistedEvents.length === 0 && <tr><td colSpan={4} className="px-5 py-10 text-center text-sm text-muted-foreground">Ainda não há eventos persistidos.</td></tr>}</tbody></table></div></section>
-          <footer className="py-6 text-xs text-muted-foreground">Monitoramento local e privado</footer>
-        </div>
+              <div className="absolute bottom-4 right-4 grid grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/65 text-zinc-300 shadow-lg shadow-black/20 backdrop-blur-md">
+                <div className="border-r border-white/10 px-3 py-2.5">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-500">Vídeo</p>
+                  <p className="mt-1 font-mono text-xs font-semibold text-white">{engineMetrics.fps.toFixed(1)} FPS</p>
+                </div>
+                <div className="px-3 py-2.5">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-500">Ciclo</p>
+                  <p className="mt-1 font-mono text-xs font-semibold text-white">{engineMetrics.latencyMs.toFixed(0)} ms</p>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <aside className="rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Sessão atual</p>
+                <h2 className="mt-2 text-xl font-semibold tracking-[-0.035em] text-card-foreground">Estado do monitoramento</h2>
+              </div>
+              <span className={`flex h-10 w-10 items-center justify-center rounded-2xl ${present ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                <Dog className="h-5 w-5" />
+              </span>
+            </div>
+
+            <div className={`mt-6 rounded-2xl border p-4 ${present ? 'border-success/20 bg-success/[0.06]' : 'border-destructive/20 bg-destructive/[0.06]'}`}>
+              <div className="flex items-center gap-2">
+                <span className={`h-2.5 w-2.5 rounded-full ${present ? 'animate-pulse bg-success' : 'bg-destructive'}`} />
+                <p className={`text-sm font-semibold ${present ? 'text-success' : 'text-destructive'}`}>{present ? 'Pet visível na câmera' : 'Nenhuma presença recente'}</p>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">{present ? 'O motor detectou um animal no enquadramento ativo.' : 'O sistema continua monitorando a fonte configurada.'}</p>
+            </div>
+
+            <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 border-t border-border/80 pt-5">
+              <div>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">Última leitura</dt>
+                <dd className="mt-1.5 text-sm font-semibold text-card-foreground">{relativeTime(lastSeen)}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">Reconhecidos</dt>
+                <dd className="mt-1.5 text-sm font-semibold text-card-foreground">{identifiedCount} agora</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">Câmera</dt>
+                <dd className="mt-1.5 truncate text-sm font-semibold text-card-foreground">{defaultCamera?.name ?? 'Não definida'}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">Motor</dt>
+                <dd className={`mt-1.5 text-sm font-semibold ${online ? 'text-success' : 'text-muted-foreground'}`}>{online ? 'Conectado' : 'Offline'}</dd>
+              </div>
+            </dl>
+          </aside>
+        </section>
+
+        <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric label="Presença" value={present ? 'Presente' : 'Ausente'} detail={present ? 'No campo de visão' : 'Sem leitura recente'} icon={<span className={`h-2.5 w-2.5 rounded-full ${present ? 'bg-success' : 'bg-destructive'}`} />} tone={present ? 'text-success' : 'text-destructive'} />
+          <Metric label="Detecções" value={String(detectionCount)} detail="Nesta sessão" icon={<Activity className="h-4 w-4" />} tone="text-info" />
+          <Metric label="Processamento" value={`${engineMetrics.fps.toFixed(1)} FPS`} detail="Pré-visualização ativa" icon={<Gauge className="h-4 w-4" />} />
+          <Metric label="Último evento" value={lastEvent ? formatClock(lastEvent.time) : '—'} detail={lastEvent ? lastEvent.message : 'Sem eventos na sessão'} icon={<Clock3 className="h-4 w-4" />} tone="text-warning" />
+        </section>
+
+        <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+          <article className="rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6">
+            <div className="flex flex-col gap-4 border-b border-border/80 pb-5 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Em tempo real</p>
+                <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Eventos recentes</h2>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Atualizações persistidas durante o monitoramento.</p>
+              </div>
+              <div className="flex rounded-xl border border-border bg-surface-raised/65 p-1 text-[11px] font-medium">
+                <button type="button" onClick={() => setFilter('all')} className={`rounded-lg px-3 py-1.5 transition ${filter === 'all' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Tudo</button>
+                <button type="button" onClick={() => setFilter('alerts')} className={`rounded-lg px-3 py-1.5 transition ${filter === 'alerts' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Alertas</button>
+              </div>
+            </div>
+
+            <div className="mt-2 divide-y divide-border/75">
+              {visibleEvents.slice(0, 5).map((event) => {
+                const isAlert = event.kind === 'pet_left';
+                const isIdentification = event.kind === 'identification';
+                return (
+                  <div key={event.id} className="flex gap-3 py-4 first:pt-3 last:pb-1">
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isAlert ? 'bg-destructive/10 text-destructive' : isIdentification ? 'bg-success/10 text-success' : 'bg-info/10 text-info'}`}>
+                      {isAlert ? <Bell className="h-4 w-4" /> : isIdentification ? <Check className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-medium text-card-foreground">{event.label}</p>
+                        <time className="shrink-0 font-mono text-[10px] text-muted-foreground">{formatClock(event.time)}</time>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{event.message}</p>
+                    </div>
+                  </div>
+                );
+              })}
+              {visibleEvents.length === 0 && (
+                <div className="flex min-h-48 flex-col items-center justify-center px-5 text-center">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-raised text-muted-foreground"><History className="h-5 w-5" /></span>
+                  <p className="mt-3 text-sm font-medium text-card-foreground">Nenhum evento por enquanto</p>
+                  <p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground">Os registros de identificação, atividade e ausência aparecerão aqui.</p>
+                </div>
+              )}
+            </div>
+          </article>
+
+          <article className="rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6">
+            <div className="flex items-start justify-between gap-4 border-b border-border/80 pb-5">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Histórico</p>
+                <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Últimos registros</h2>
+              </div>
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-raised text-muted-foreground"><History className="h-4 w-4" /></span>
+            </div>
+
+            <div className="mt-1 divide-y divide-border/75">
+              {persistedEvents.slice(0, 5).map((event) => {
+                const isAlert = event.kind === 'pet_left';
+                return (
+                  <div key={`history-${event.id}`} className="flex items-center gap-3 py-3.5">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${isAlert ? (event.shouldNotify ? 'bg-destructive' : 'bg-warning') : 'bg-success'}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-card-foreground">{event.label}</p>
+                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{event.message}</p>
+                    </div>
+                    <time className="shrink-0 font-mono text-[10px] text-muted-foreground">{formatClock(event.time)}</time>
+                  </div>
+                );
+              })}
+              {persistedEvents.length === 0 && (
+                <div className="flex min-h-48 flex-col items-center justify-center text-center">
+                  <p className="text-sm font-medium text-card-foreground">Histórico vazio</p>
+                  <p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground">Os eventos persistidos permanecerão disponíveis após atualizar a página.</p>
+                </div>
+              )}
+            </div>
+          </article>
+        </section>
+
+        <footer className="flex items-center gap-2 py-7 text-xs text-muted-foreground">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+          Monitoramento local e privado
+        </footer>
       </div>
     </div>
   );
