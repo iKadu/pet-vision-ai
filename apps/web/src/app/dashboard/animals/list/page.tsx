@@ -12,6 +12,7 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  TriangleAlert,
   UsersRound,
   X,
 } from 'lucide-react';
@@ -149,11 +150,19 @@ export default function AnimalsListPage() {
           </section>
         )}
 
+        {petsQuery.isSuccess && petsQuery.data.length > 0 && referencesQuery.isError && (
+          <section role="alert" className="mt-7 flex flex-col gap-4 rounded-2xl border border-warning/25 bg-warning/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning/10 text-warning"><TriangleAlert className="h-4 w-4" /></span><div><p className="text-sm font-semibold text-card-foreground">As fotos de referência não puderam ser carregadas</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Os perfis continuam disponíveis, mas aguarde a conexão ser restabelecida antes de adicionar novas referências.</p></div></div>
+            <button type="button" onClick={() => void referencesQuery.refetch()} className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl border border-warning/25 bg-card px-3 text-xs font-semibold text-card-foreground transition hover:border-warning/50 hover:bg-warning/10">Tentar novamente</button>
+          </section>
+        )}
+
         {petsQuery.isSuccess && petsQuery.data.length > 0 && (
           <section className="mt-7 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {petsQuery.data.map((pet) => {
               const references = referencesQuery.data?.filter((reference) => reference.petId === pet.id) ?? [];
               const canAddReference = referencesQuery.isSuccess && references.length < MAX_REFERENCE_PHOTOS;
+              const isLoadingReferences = referencesQuery.isPending;
               const isAddingReference = addReferencePhoto.isPending && addReferencePhoto.variables?.petId === pet.id;
 
               return (
@@ -186,7 +195,7 @@ export default function AnimalsListPage() {
                         <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold text-card-foreground">Fotos de referência</p><p className="mt-1 text-[11px] leading-4 text-muted-foreground">{references.length === 0 ? 'Adicione imagens em outros ângulos.' : references.length < MAX_REFERENCE_PHOTOS ? 'Mais variedade melhora a identificação.' : 'Limite de referências atingido.'}</p></div><span className="rounded-full bg-surface-raised px-2 py-1 font-mono text-[10px] font-semibold text-muted-foreground">{references.length}/{MAX_REFERENCE_PHOTOS}</span></div>
 
                         <div className="mt-3 grid grid-cols-5 gap-2">
-                          {references.map((reference) => reference.sourcePhotoUrl ? <img key={reference.id} src={reference.sourcePhotoUrl} alt={`Referência de ${pet.name}`} className="aspect-square w-full rounded-lg border border-border/70 object-cover" /> : <span key={reference.id} className="flex aspect-square items-center justify-center rounded-lg bg-surface-raised text-muted-foreground" aria-label="Referência sem imagem"><Dog className="h-3.5 w-3.5" /></span>)}
+                          {isLoadingReferences ? [0, 1, 2].map((index) => <span key={index} className="aspect-square animate-pulse rounded-lg border border-border/70 bg-surface-raised" aria-label="Carregando referência" />) : references.map((reference) => reference.sourcePhotoUrl ? <img key={reference.id} src={reference.sourcePhotoUrl} alt={`Referência de ${pet.name}`} className="aspect-square w-full rounded-lg border border-border/70 object-cover" /> : <span key={reference.id} className="flex aspect-square items-center justify-center rounded-lg bg-surface-raised text-muted-foreground" aria-label="Referência sem imagem"><Dog className="h-3.5 w-3.5" /></span>)}
                           {canAddReference && (
                             <label className="flex aspect-square cursor-pointer items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground transition hover:border-primary hover:bg-accent hover:text-primary">
                               <ImagePlus className="h-4 w-4" />

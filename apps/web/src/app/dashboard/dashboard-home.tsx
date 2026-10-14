@@ -14,6 +14,8 @@ import {
   Gauge,
   History,
   Radio,
+  RefreshCw,
+  TriangleAlert,
   Wifi,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -303,6 +305,23 @@ export default function DashboardHome() {
   const lastEvent = events[0] ?? persistedEvents[0];
   const identifiedCount = detections.filter((detection) => detection.identification?.status === 'identified').length;
   const cameraLabel = defaultCamera ? `${defaultCamera.name} · câmera padrão` : 'Nenhuma câmera padrão definida';
+  const hasDashboardDataError = defaultCameraQuery.isError
+    || petsQuery.isError
+    || preferencesQuery.isError
+    || monitoringEventsQuery.isError;
+  const isRefreshingDashboardData = defaultCameraQuery.isRefetching
+    || petsQuery.isRefetching
+    || preferencesQuery.isRefetching
+    || monitoringEventsQuery.isRefetching;
+
+  function retryDashboardData() {
+    void Promise.all([
+      defaultCameraQuery.refetch(),
+      petsQuery.refetch(),
+      preferencesQuery.refetch(),
+      monitoringEventsQuery.refetch(),
+    ]);
+  }
 
   return (
     <div className="min-h-screen text-foreground">
@@ -325,6 +344,13 @@ export default function DashboardHome() {
             </Link>
           </div>
         </header>
+
+        {hasDashboardDataError && (
+          <section role="alert" className="mb-6 flex flex-col gap-4 rounded-2xl border border-warning/25 bg-warning/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning/10 text-warning"><TriangleAlert className="h-4 w-4" /></span><div><p className="text-sm font-semibold text-card-foreground">Algumas informações podem estar desatualizadas</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Não foi possível consultar todos os dados do monitoramento. O vídeo local continua sendo atualizado separadamente.</p></div></div>
+            <button type="button" onClick={retryDashboardData} disabled={isRefreshingDashboardData} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-warning/25 bg-card px-3 text-xs font-semibold text-card-foreground transition hover:border-warning/50 hover:bg-warning/10 disabled:cursor-not-allowed disabled:opacity-55"><RefreshCw className={`h-3.5 w-3.5 ${isRefreshingDashboardData ? 'animate-spin' : ''}`} />{isRefreshingDashboardData ? 'Atualizando...' : 'Tentar novamente'}</button>
+          </section>
+        )}
 
         <section className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.72fr)]">
           <article className="overflow-hidden rounded-[28px] border border-[#253336] bg-[#091113] shadow-[0_22px_50px_oklch(0_0_0_/_0.18)]">

@@ -8,10 +8,12 @@ import {
   Check,
   CircleDot,
   Gauge,
+  LoaderCircle,
   Monitor,
   Pencil,
   Play,
   Radio,
+  RefreshCw,
   Square,
   Trash2,
   Video,
@@ -301,7 +303,7 @@ export default function CamerasPage() {
                 </span>
                 <div className="min-w-0">
                   <h2 className="text-sm font-semibold text-white">Pré-visualização</h2>
-                  <p className="mt-0.5 truncate text-xs text-zinc-500">{defaultCamera ? `${defaultCamera.name} · câmera padrão` : 'Nenhuma câmera padrão definida'}</p>
+                  <p className="mt-0.5 truncate text-xs text-zinc-500">{camerasQuery.isPending ? 'Carregando fontes salvas...' : defaultCamera ? `${defaultCamera.name} · câmera padrão` : 'Nenhuma câmera padrão definida'}</p>
                 </div>
               </div>
               <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.13em] ${running ? 'border-[#2dd4bf]/30 bg-[#2dd4bf]/10 text-[#67e8d8]' : 'border-white/10 bg-white/[0.04] text-zinc-500'}`}>
@@ -327,6 +329,12 @@ export default function CamerasPage() {
                         : `${identifiedCount} confirmado${identifiedCount === 1 ? '' : 's'}${pendingIdentificationCount ? ` · ${pendingIdentificationCount} em análise` : ''} · ${streamDetections.length} detectado${streamDetections.length === 1 ? '' : 's'}`}
                   </div>
                 </>
+              ) : camerasQuery.isPending ? (
+                <div className="max-w-xs px-6 text-center">
+                  <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-[#67e8d8]"><LoaderCircle className="h-6 w-6 animate-spin" /></span>
+                  <p className="mt-4 text-sm font-medium text-zinc-200">Carregando suas câmeras</p>
+                  <p className="mt-2 text-xs leading-5 text-zinc-500">Estamos verificando qual fonte deve ser usada no monitoramento.</p>
+                </div>
               ) : (
                 <div className="max-w-xs px-6 text-center">
                   <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-500"><Video className="h-6 w-6" /></span>
@@ -426,6 +434,31 @@ export default function CamerasPage() {
             </form>
           </aside>
         </div>
+
+        {camerasQuery.isPending && (
+          <section className="mt-6 rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6" aria-label="Carregando câmeras salvas">
+            <div className="h-3 w-28 animate-pulse rounded-full bg-surface-raised" />
+            <div className="mt-3 h-5 w-48 animate-pulse rounded-lg bg-surface-raised" />
+            <div className="mt-6 grid gap-3 lg:grid-cols-2">{[0, 1].map((index) => <div key={index} className="h-36 animate-pulse rounded-2xl border border-border/70 bg-surface-raised/50" />)}</div>
+          </section>
+        )}
+
+        {camerasQuery.isError && (
+          <section className="mt-6 rounded-[28px] border border-destructive/25 bg-destructive/[0.06] px-5 py-10 text-center shadow-[0_12px_35px_oklch(0_0_0_/_0.03)] sm:px-8">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive"><X className="h-5 w-5" /></span>
+            <h2 className="mt-4 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Não foi possível carregar as câmeras</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">A fonte de vídeo continua disponível para configuração, mas a lista de câmeras salvas não pôde ser consultada agora.</p>
+            <button type="button" onClick={() => void camerasQuery.refetch()} className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"><RefreshCw className="h-4 w-4" />Tentar novamente</button>
+          </section>
+        )}
+
+        {camerasQuery.isSuccess && camerasQuery.data.length === 0 && (
+          <section className="mt-6 rounded-[28px] border border-dashed border-border bg-card/65 px-5 py-11 text-center sm:px-8">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-accent-foreground"><Camera className="h-5 w-5" /></span>
+            <h2 className="mt-4 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Sua biblioteca de câmeras está vazia</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Escolha uma fonte no painel acima, dê um nome a ela e salve para torná-la disponível no monitoramento.</p>
+          </section>
+        )}
 
         {camerasQuery.isSuccess && camerasQuery.data.length > 0 && (
           <section className="mt-6 rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6">
