@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Dog, ImagePlus, PawPrint, Plus, UsersRound } from "lucide-react";
+import { ArrowUpRight, Plus, UsersRound } from "lucide-react";
 
 export default function AnimalsPage() {
   return (
@@ -36,12 +36,6 @@ export default function AnimalsPage() {
               <ArrowUpRight className="mb-1 h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-1 group-hover:-translate-y-1 group-hover:text-primary" />
             </div>
           </Link>
-        </section>
-
-        <section className="mt-6 grid gap-4 sm:grid-cols-3">
-          <article className="rounded-2xl border border-border/80 bg-card/60 p-4"><Dog className="h-4 w-4 text-primary" /><p className="mt-4 text-sm font-semibold text-card-foreground">Perfil por animal</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Cada referência fica associada ao pet cadastrado.</p></article>
-          <article className="rounded-2xl border border-border/80 bg-card/60 p-4"><ImagePlus className="h-4 w-4 text-info" /><p className="mt-4 text-sm font-semibold text-card-foreground">Vários ângulos</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Fotos variadas ajudam o motor a lidar com poses diferentes.</p></article>
-          <article className="rounded-2xl border border-border/80 bg-card/60 p-4"><PawPrint className="h-4 w-4 text-success" /><p className="mt-4 text-sm font-semibold text-card-foreground">Reconhecimento criterioso</p><p className="mt-1 text-xs leading-5 text-muted-foreground">O sistema só confirma a identidade quando há evidência suficiente.</p></article>
         </section>
       </div>
     </div>

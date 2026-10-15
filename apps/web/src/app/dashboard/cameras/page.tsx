@@ -7,7 +7,6 @@ import {
   Camera,
   Check,
   CircleDot,
-  Gauge,
   LoaderCircle,
   Monitor,
   Pencil,
@@ -532,12 +531,6 @@ export default function CamerasPage() {
             </div>
           </section>
         )}
-
-        <section className="mt-6 grid gap-4 sm:grid-cols-3">
-          <article className="rounded-2xl border border-border/80 bg-card/60 p-4"><Gauge className="h-4 w-4 text-primary" /><p className="mt-4 text-sm font-semibold text-card-foreground">Desempenho visível</p><p className="mt-1 text-xs leading-5 text-muted-foreground">FPS e duração do ciclo ficam disponíveis durante o monitoramento.</p></article>
-          <article className="rounded-2xl border border-border/80 bg-card/60 p-4"><CircleDot className="h-4 w-4 text-success" /><p className="mt-4 text-sm font-semibold text-card-foreground">Uma fonte padrão</p><p className="mt-1 text-xs leading-5 text-muted-foreground">O motor usa uma única câmera por vez, sempre marcada como padrão.</p></article>
-          <article className="rounded-2xl border border-border/80 bg-card/60 p-4"><Radio className="h-4 w-4 text-info" /><p className="mt-4 text-sm font-semibold text-card-foreground">Processamento local</p><p className="mt-1 text-xs leading-5 text-muted-foreground">O fluxo de vídeo é analisado no AI Engine da sua máquina.</p></article>
-        </section>
       </div>
     </div>
   );
