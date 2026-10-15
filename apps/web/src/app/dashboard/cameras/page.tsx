@@ -388,7 +388,7 @@ export default function CamerasPage() {
             </div>
 
             <div className="mt-6 space-y-2">
-              <button type="button" onClick={() => selectSource('webcam')} className={`group flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition ${source === 'webcam' ? 'border-primary/50 bg-accent text-accent-foreground shadow-sm' : 'border-border bg-card text-muted-foreground hover:border-primary/35 hover:bg-surface-raised hover:text-foreground'}`}>
+              <button type="button" aria-pressed={source === 'webcam'} onClick={() => selectSource('webcam')} className={`group flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition ${source === 'webcam' ? 'border-primary/50 bg-accent text-accent-foreground shadow-sm' : 'border-border bg-card text-muted-foreground hover:border-primary/35 hover:bg-surface-raised hover:text-foreground'}`}>
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${source === 'webcam' ? 'bg-primary text-primary-foreground' : 'bg-surface-raised text-muted-foreground group-hover:text-foreground'}`}><Camera className="h-4 w-4" /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold">Webcam local</span>
@@ -397,7 +397,7 @@ export default function CamerasPage() {
                 {source === 'webcam' && <Check className="h-4 w-4 text-primary" />}
               </button>
 
-              <button type="button" onClick={() => selectSource('screen')} className={`group flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition ${source === 'screen' ? 'border-primary/50 bg-accent text-accent-foreground shadow-sm' : 'border-border bg-card text-muted-foreground hover:border-primary/35 hover:bg-surface-raised hover:text-foreground'}`}>
+              <button type="button" aria-pressed={source === 'screen'} onClick={() => selectSource('screen')} className={`group flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition ${source === 'screen' ? 'border-primary/50 bg-accent text-accent-foreground shadow-sm' : 'border-border bg-card text-muted-foreground hover:border-primary/35 hover:bg-surface-raised hover:text-foreground'}`}>
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${source === 'screen' ? 'bg-primary text-primary-foreground' : 'bg-surface-raised text-muted-foreground group-hover:text-foreground'}`}><Monitor className="h-4 w-4" /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold">Tela do computador</span>
@@ -406,7 +406,7 @@ export default function CamerasPage() {
                 {source === 'screen' && <Check className="h-4 w-4 text-primary" />}
               </button>
 
-              <button type="button" onClick={() => selectSource('rtsp')} className={`group flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition ${source === 'rtsp' ? 'border-primary/50 bg-accent text-accent-foreground shadow-sm' : 'border-border bg-card text-muted-foreground hover:border-primary/35 hover:bg-surface-raised hover:text-foreground'}`}>
+              <button type="button" aria-pressed={source === 'rtsp'} onClick={() => selectSource('rtsp')} className={`group flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition ${source === 'rtsp' ? 'border-primary/50 bg-accent text-accent-foreground shadow-sm' : 'border-border bg-card text-muted-foreground hover:border-primary/35 hover:bg-surface-raised hover:text-foreground'}`}>
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${source === 'rtsp' ? 'bg-primary text-primary-foreground' : 'bg-surface-raised text-muted-foreground group-hover:text-foreground'}`}><Radio className="h-4 w-4" /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold">Câmera IP</span>

@@ -458,9 +458,9 @@ export default function DashboardHome() {
                 <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Eventos recentes</h2>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">Atualizações persistidas durante o monitoramento.</p>
               </div>
-              <div className="flex rounded-xl border border-border bg-surface-raised/65 p-1 text-[11px] font-medium">
-                <button type="button" onClick={() => setFilter('all')} className={`rounded-lg px-3 py-1.5 transition ${filter === 'all' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Tudo</button>
-                <button type="button" onClick={() => setFilter('alerts')} className={`rounded-lg px-3 py-1.5 transition ${filter === 'alerts' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Alertas</button>
+              <div role="group" aria-label="Filtrar eventos" className="flex rounded-xl border border-border bg-surface-raised/65 p-1 text-[11px] font-medium">
+                <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')} className={`rounded-lg px-3 py-1.5 transition ${filter === 'all' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Tudo</button>
+                <button type="button" aria-pressed={filter === 'alerts'} onClick={() => setFilter('alerts')} className={`rounded-lg px-3 py-1.5 transition ${filter === 'alerts' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Alertas</button>
               </div>
             </div>
 

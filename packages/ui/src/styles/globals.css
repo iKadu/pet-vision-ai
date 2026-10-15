@@ -159,6 +159,10 @@
   * {
     @apply border-border outline-ring/50;
   }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
   body {
     @apply font-sans bg-background text-foreground;
     background-image: radial-gradient(circle at 82% -8%, color-mix(in oklch, var(--primary) 8%, transparent), transparent 28rem);
@@ -169,6 +173,17 @@
 
   ::selection {
     background: color-mix(in oklch, var(--primary) 24%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

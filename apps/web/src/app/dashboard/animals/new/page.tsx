@@ -128,7 +128,7 @@ export default function NewAnimalPage() {
                   const active = species === option;
                   const label = option === 'dog' ? 'Cachorro' : 'Gato';
                   return (
-                    <button key={option} type="button" onClick={() => setSpecies(option)} className={`flex h-12 items-center gap-3 rounded-xl border px-3 text-left transition ${active ? 'border-primary/45 bg-accent text-accent-foreground shadow-sm' : 'border-border bg-card text-muted-foreground hover:border-primary/30 hover:bg-surface-raised hover:text-foreground'}`}>
+                    <button key={option} type="button" aria-pressed={active} onClick={() => setSpecies(option)} className={`flex h-12 items-center gap-3 rounded-xl border px-3 text-left transition ${active ? 'border-primary/45 bg-accent text-accent-foreground shadow-sm' : 'border-border bg-card text-muted-foreground hover:border-primary/30 hover:bg-surface-raised hover:text-foreground'}`}>
                       <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${active ? 'bg-primary text-primary-foreground' : 'bg-surface-raised text-muted-foreground'}`}><PawPrint className="h-3.5 w-3.5" /></span>
                       <span className="text-sm font-semibold">{label}</span>
                     </button>

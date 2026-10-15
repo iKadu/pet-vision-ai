@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { Route } from 'next';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Camera,
   ChevronRight,
@@ -64,6 +64,17 @@ export default function DashboardShell({ children }: Props) {
     },
   ];
 
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIsMobileMenuOpen(false);
+    }
+
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isMobileMenuOpen]);
+
   return (
     <div className="min-h-screen bg-background">
       {isMobileMenuOpen && (
@@ -75,6 +86,8 @@ export default function DashboardShell({ children }: Props) {
         />
       )}
       <aside
+        id="dashboard-navigation"
+        aria-label="Navegação do dashboard"
         className={`fixed inset-y-0 left-0 z-30 flex h-screen w-[280px] -translate-x-full flex-col border-r border-sidebar-border/80 bg-sidebar/95 px-3 py-4 text-sidebar-foreground shadow-[18px_0_40px_oklch(0_0_0_/_0.09)] backdrop-blur-xl transition-[width,transform] duration-300 ${isMobileMenuOpen ? 'translate-x-0' : ''} lg:z-20 lg:translate-x-0 lg:shadow-none ${expanded ? 'lg:w-[264px]' : 'lg:w-[84px]'}`}
       >
         <div className={`flex min-h-12 items-center ${showExpandedContent ? 'justify-between px-1' : 'justify-center'}`}>
@@ -100,6 +113,8 @@ export default function DashboardShell({ children }: Props) {
           <button
             type="button"
             aria-label={expanded ? 'Recolher menu' : 'Expandir menu'}
+            aria-expanded={expanded}
+            aria-controls="dashboard-navigation"
             onClick={() => setExpanded((value) => !value)}
             className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 lg:flex"
           >
@@ -164,7 +179,7 @@ export default function DashboardShell({ children }: Props) {
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Dog className="h-4 w-4" strokeWidth={2.4} /></span>
             <span className="text-sm font-semibold tracking-[-0.03em]">PetVision</span>
           </Link>
-          <button type="button" aria-label="Abrir menu" onClick={() => setIsMobileMenuOpen(true)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-foreground shadow-sm transition hover:border-primary/35 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"><Menu className="h-4 w-4" /></button>
+          <button type="button" aria-label="Abrir menu" aria-expanded={isMobileMenuOpen} aria-controls="dashboard-navigation" onClick={() => setIsMobileMenuOpen(true)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-foreground shadow-sm transition hover:border-primary/35 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"><Menu className="h-4 w-4" /></button>
         </div>
         {children}
       </main>
