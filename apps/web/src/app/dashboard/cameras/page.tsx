@@ -343,20 +343,20 @@ export default function CamerasPage() {
                 </div>
               )}
 
-              <dl aria-label="Desempenho do monitoramento" className="pointer-events-none absolute bottom-4 right-4 grid grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/65 text-zinc-300 shadow-lg shadow-black/20 backdrop-blur-md sm:grid-cols-4">
-                <div className="border-b border-r border-white/10 px-3 py-2.5 sm:border-b-0">
+              <dl aria-label="Desempenho do monitoramento" className="pointer-events-none absolute bottom-3 left-3 right-3 grid grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/65 text-zinc-300 shadow-lg shadow-black/20 backdrop-blur-md sm:bottom-4 sm:left-auto sm:right-4 sm:grid-cols-4">
+                <div className="border-b border-r border-white/10 px-2.5 py-2 sm:border-b-0 sm:px-3 sm:py-2.5">
                   <dt className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-500">Vídeo</dt>
                   <dd className="mt-1 font-mono text-xs font-semibold text-white">{captureFps > 0 ? `${captureFps.toFixed(1)} FPS` : '—'}</dd>
                 </div>
-                <div className="border-b border-white/10 px-3 py-2.5 sm:border-b-0 sm:border-r">
+                <div className="border-b border-white/10 px-2.5 py-2 sm:border-b-0 sm:border-r sm:px-3 sm:py-2.5">
                   <dt className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-500">IA alvo</dt>
                   <dd className="mt-1 font-mono text-xs font-semibold text-white">{targetFps.toFixed(1)} FPS</dd>
                 </div>
-                <div className="border-r border-white/10 px-3 py-2.5">
+                <div className="border-r border-white/10 px-2.5 py-2 sm:px-3 sm:py-2.5">
                   <dt className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-500">Real</dt>
                   <dd className="mt-1 font-mono text-xs font-semibold text-white">{measuredFps > 0 ? `${measuredFps.toFixed(1)} FPS` : '—'}</dd>
                 </div>
-                <div className="px-3 py-2.5">
+                <div className="px-2.5 py-2 sm:px-3 sm:py-2.5">
                   <dt className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-500">Ciclo</dt>
                   <dd className="mt-1 font-mono text-xs font-semibold text-white">{cycleLatency > 0 ? `${Math.round(cycleLatency)} ms` : '—'}</dd>
                 </div>
@@ -369,7 +369,7 @@ export default function CamerasPage() {
                 type="button"
                 onClick={() => void toggleStream()}
                 disabled={isTogglingStream}
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 text-xs font-semibold text-zinc-950 shadow-sm transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 text-xs font-semibold text-zinc-950 shadow-sm transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 {running ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
                 {isTogglingStream ? (running ? 'Parando...' : 'Conectando...') : running ? 'Parar monitoramento' : 'Iniciar monitoramento'}
@@ -516,7 +516,7 @@ export default function CamerasPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 flex items-center justify-between border-t border-border/70 pt-3">
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3">
                       <button type="button" disabled={camera.isDefault || deleteCamera.isPending || setDefaultCamera.isPending} onClick={() => void setCameraAsDefault(camera)} className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-semibold transition disabled:cursor-default ${camera.isDefault ? 'bg-success/10 text-success' : 'bg-surface-raised text-foreground hover:bg-accent disabled:opacity-50'}`}>
                         {camera.isDefault ? <Check className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
                         {camera.isDefault ? 'Padrão ativo' : 'Definir padrão'}

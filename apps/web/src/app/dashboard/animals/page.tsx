@@ -15,7 +15,7 @@ export default function AnimalsPage() {
           <Link href="/dashboard/animals/new" className="group relative overflow-hidden rounded-[28px] border border-primary/25 bg-primary p-6 text-primary-foreground shadow-[0_18px_40px_color-mix(in_oklch,var(--primary)_20%,transparent)] transition duration-300 hover:-translate-y-0.5 hover:bg-primary-hover sm:p-8">
             <span className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
             <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/10"><Plus className="h-5 w-5" /></span>
-            <div className="relative mt-16 flex items-end justify-between gap-5">
+            <div className="relative mt-12 flex items-end justify-between gap-5 sm:mt-16">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-foreground/65">Novo perfil</p>
                 <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">Cadastrar animal</h2>
@@ -27,7 +27,7 @@ export default function AnimalsPage() {
 
           <Link href="/dashboard/animals/list" className="group rounded-[28px] border border-border/80 bg-card/80 p-6 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm transition duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_40px_oklch(0_0_0_/_0.07)] sm:p-8">
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-accent-foreground"><UsersRound className="h-5 w-5" /></span>
-            <div className="mt-16 flex items-end justify-between gap-5">
+            <div className="mt-12 flex items-end justify-between gap-5 sm:mt-16">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Biblioteca</p>
                 <h2 className="mt-2 text-xl font-semibold tracking-[-0.035em] text-card-foreground">Animais cadastrados</h2>

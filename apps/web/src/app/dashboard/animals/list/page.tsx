@@ -117,7 +117,7 @@ export default function AnimalsListPage() {
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-foreground sm:text-4xl">Animais cadastrados</h1>
             <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Organize perfis, amplie referências visuais e mantenha o reconhecimento preparado para o monitoramento.</p>
           </div>
-          <Link href="/dashboard/animals/new" className="inline-flex h-10 w-fit items-center gap-2 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover">
+          <Link href="/dashboard/animals/new" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover md:w-fit">
             <Plus className="h-4 w-4" />
             Novo animal
             <ArrowUpRight className="h-3.5 w-3.5" />
@@ -145,7 +145,7 @@ export default function AnimalsListPage() {
               <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-accent-foreground"><UsersRound className="h-6 w-6" /></span>
               <h2 className="mt-5 text-xl font-semibold tracking-[-0.035em] text-card-foreground">Comece pelo primeiro perfil</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">Cadastre um animal e use uma foto nítida para criar a primeira referência do reconhecimento.</p>
-              <Link href="/dashboard/animals/new" className="mt-6 inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover"><Plus className="h-4 w-4" />Cadastrar animal</Link>
+              <Link href="/dashboard/animals/new" className="mt-6 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover sm:w-auto"><Plus className="h-4 w-4" />Cadastrar animal</Link>
             </div>
           </section>
         )}
@@ -208,7 +208,7 @@ export default function AnimalsListPage() {
                         {addReferencePhoto.isError && addReferencePhoto.variables?.petId === pet.id && <p className="mt-3 text-xs leading-5 text-destructive">{addReferencePhoto.error instanceof Error ? addReferencePhoto.error.message : 'Não foi possível adicionar a foto de referência.'}</p>}
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between gap-3">
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                         <span className="text-[11px] text-muted-foreground">{references.length ? 'Referências salvas no perfil' : 'Sem referência adicional'}</span>
                         <div className="flex items-center gap-1"><button type="button" onClick={() => startEditing(pet)} className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-surface-raised hover:text-foreground"><Pencil className="h-3.5 w-3.5" />Editar</button><button type="button" onClick={() => removePet(pet.id, pet.name)} disabled={deletePet.isPending} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50" aria-label={`Excluir ${pet.name}`}><Trash2 className="h-3.5 w-3.5" /></button></div>
                       </div>

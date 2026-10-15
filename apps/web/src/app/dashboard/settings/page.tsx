@@ -142,7 +142,7 @@ export default function SettingsPage() {
             </section>
 
             <div className="mt-7 flex flex-wrap items-center gap-3 border-t border-border/80 pt-5">
-              <button type="submit" disabled={!isValidAbsenceInterval || updatePreferences.isPending} className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"><Check className="h-4 w-4" />{updatePreferences.isPending ? 'Salvando...' : 'Salvar configurações'}</button>
+              <button type="submit" disabled={!isValidAbsenceInterval || updatePreferences.isPending} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"><Check className="h-4 w-4" />{updatePreferences.isPending ? 'Salvando...' : 'Salvar configurações'}</button>
               <p aria-live="polite" className="text-xs leading-5 text-muted-foreground">As mudanças são usadas ao iniciar ou reiniciar o monitoramento.</p>
             </div>
             {preferencesQuery.error && <p className="mt-4 rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2.5 text-sm text-destructive" role="alert">Não foi possível carregar as configurações. Atualize a página para tentar novamente.</p>}

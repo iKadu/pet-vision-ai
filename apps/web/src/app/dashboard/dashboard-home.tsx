@@ -337,7 +337,7 @@ export default function DashboardHome() {
               <span className={`h-1.5 w-1.5 rounded-full ${online ? 'animate-pulse bg-success' : 'bg-muted-foreground'}`} />
               {online ? 'Motor conectado' : 'Motor offline'}
             </span>
-            <Link href="/dashboard/cameras" className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary px-3.5 text-xs font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover">
+            <Link href="/dashboard/cameras" className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3.5 text-xs font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover sm:w-auto">
               <Camera className="h-3.5 w-3.5" />
               Gerenciar câmeras
               <ArrowUpRight className="h-3.5 w-3.5" />
@@ -390,12 +390,12 @@ export default function DashboardHome() {
                 </div>
               )}
 
-              <div className="absolute bottom-4 right-4 grid grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/65 text-zinc-300 shadow-lg shadow-black/20 backdrop-blur-md">
-                <div className="border-r border-white/10 px-3 py-2.5">
+              <div className="absolute bottom-3 left-3 right-3 grid grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/65 text-zinc-300 shadow-lg shadow-black/20 backdrop-blur-md sm:bottom-4 sm:left-auto sm:right-4">
+                <div className="border-r border-white/10 px-2.5 py-2 sm:px-3 sm:py-2.5">
                   <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-500">Vídeo</p>
                   <p className="mt-1 font-mono text-xs font-semibold text-white">{engineMetrics.fps.toFixed(1)} FPS</p>
                 </div>
-                <div className="px-3 py-2.5">
+                <div className="px-2.5 py-2 sm:px-3 sm:py-2.5">
                   <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-500">Ciclo</p>
                   <p className="mt-1 font-mono text-xs font-semibold text-white">{engineMetrics.latencyMs.toFixed(0)} ms</p>
                 </div>

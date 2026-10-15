@@ -79,7 +79,7 @@ export default function ProfilePage() {
             </section>
 
             <div className="mt-7 flex flex-wrap items-center gap-3 border-t border-border/80 pt-5">
-              <button type="submit" disabled={!hasChanges || isSaving} className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"><Check className="h-4 w-4" />{isSaving ? 'Salvando...' : 'Salvar perfil'}</button>
+              <button type="submit" disabled={!hasChanges || isSaving} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"><Check className="h-4 w-4" />{isSaving ? 'Salvando...' : 'Salvar perfil'}</button>
               <p aria-live="polite" className="text-xs leading-5 text-muted-foreground">O novo nome será atualizado na sua sessão atual.</p>
             </div>
           </form>

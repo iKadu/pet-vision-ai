@@ -142,7 +142,7 @@ export default function NewAnimalPage() {
             ) : null}
 
             <div className="mt-7 flex flex-wrap items-center gap-3 border-t border-border/80 pt-5">
-              <button type="submit" disabled={(!name.trim() && !savedPet) || createPet.isPending || isUploading} className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40">
+              <button type="submit" disabled={(!name.trim() && !savedPet) || createPet.isPending || isUploading} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto">
                 <Plus className="h-4 w-4" />
                 {isUploading ? 'Processando foto...' : createPet.isPending ? 'Salvando...' : savedPet ? 'Tentar gerar identificação' : 'Salvar animal'}
               </button>
@@ -159,7 +159,7 @@ export default function NewAnimalPage() {
               </div>
             </div>
 
-            <label htmlFor="animal-photo" className="group mt-5 flex aspect-square cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-border bg-surface-raised/60 p-5 text-center transition hover:border-primary/55 hover:bg-accent/45">
+            <label htmlFor="animal-photo" className="group mt-5 flex aspect-[4/3] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-border bg-surface-raised/60 p-5 text-center transition hover:border-primary/55 hover:bg-accent/45 sm:aspect-square">
               {photo ? (
                 <img src={photo} alt="Prévia do animal" className="h-full w-full object-cover" />
               ) : (
