@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 
 import { StreamDetectionOverlay } from '@/components/stream-detection-overlay';
 import { type StreamDetection } from '@/lib/identification-display';
-import { activateAiStream, AI_ENGINE_URL } from '@/lib/ai-stream';
+import { AI_ENGINE_URL } from '@/lib/ai-stream';
 import { trpc } from '@/utils/trpc';
 
 type EventKind = 'pet_detected' | 'pet_left';
@@ -154,7 +154,6 @@ export default function DashboardHome() {
     refetchInterval: 3_000,
   });
 
-  const synchronizedDefaultCamera = useRef<string | null>(null);
   const hasHydratedAlerts = useRef(false);
   const latestAlertId = useRef<string | null>(null);
   const defaultCamera = defaultCameraQuery.data;
@@ -199,28 +198,6 @@ export default function DashboardHome() {
     const interval = window.setInterval(() => void pollStatus(), streamRunning ? 250 : 1500);
     return () => window.clearInterval(interval);
   }, [streamRunning]);
-
-  useEffect(() => {
-    if (!defaultCamera || synchronizedDefaultCamera.current === defaultCamera.id) return;
-
-    const camera = defaultCamera;
-    let cancelled = false;
-    synchronizedDefaultCamera.current = camera.id;
-
-    async function activateDefaultCamera() {
-      try {
-        await activateAiStream(camera.source);
-        if (!cancelled) void pollStatus();
-      } catch {
-        if (!cancelled) setStreamRunning(false);
-      }
-    }
-
-    void activateDefaultCamera();
-    return () => {
-      cancelled = true;
-    };
-  }, [defaultCamera]);
 
   const persistedEvents = useMemo<PersistedEventItem[]>(() => {
     return (monitoringEventsQuery.data ?? []).map((event) => {
@@ -384,9 +361,9 @@ export default function DashboardHome() {
                   <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-500">
                     <Wifi className="h-6 w-6" />
                   </span>
-                  <p className="mt-4 text-sm font-medium text-zinc-200">{defaultCamera ? 'Preparando a transmissão' : 'Nenhuma câmera selecionada'}</p>
-                  <p className="mt-2 text-xs leading-5 text-zinc-500">{defaultCamera ? 'O motor iniciará a fonte padrão assim que estiver disponível.' : 'Defina uma câmera padrão para iniciar o monitoramento automaticamente.'}</p>
-                  {!defaultCamera && <Link href="/dashboard/cameras" className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-[#67e8d8] hover:text-white">Configurar câmera <ArrowUpRight className="h-3.5 w-3.5" /></Link>}
+                  <p className="mt-4 text-sm font-medium text-zinc-200">{defaultCamera ? 'Monitoramento pausado' : 'Nenhuma câmera selecionada'}</p>
+                  <p className="mt-2 text-xs leading-5 text-zinc-500">{defaultCamera ? 'Inicie o monitoramento na página Câmeras para visualizar e analisar a fonte padrão.' : 'Salve uma câmera e defina-a como padrão na página Câmeras.'}</p>
+                  <Link href="/dashboard/cameras" className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-[#67e8d8] hover:text-white">{defaultCamera ? 'Abrir câmeras' : 'Configurar câmera'} <ArrowUpRight className="h-3.5 w-3.5" /></Link>
                 </div>
               )}
 
