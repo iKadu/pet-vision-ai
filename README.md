@@ -129,14 +129,16 @@ publique o diretório `apps/web/public/uploads/` nem segredos de ambiente.
 ## Câmera padrão do feed
 
 Em **Câmeras**, use **Definir padrão** na câmera desejada. A escolha fica salva
-por usuário, passa a ser usada pelo feed da página inicial e é iniciada
-automaticamente ao abrir o dashboard. A primeira câmera salva já é marcada como
-padrão; se a câmera padrão for excluída, a câmera salva mais recente assume essa
-função.
+por usuário e passa a ser usada pelo feed da página inicial. A página Visão
+geral apenas exibe o estado atual; iniciar ou pausar o monitoramento é uma ação
+explícita em **Câmeras**. A primeira câmera salva já é marcada como padrão; se a
+câmera padrão for excluída, a câmera salva mais recente assume essa função.
 
 ## UI Customization
 
 React web apps in this stack share shadcn/ui primitives through `packages/ui`.
+Antes de alterar o visual ou criar uma tela, consulte o
+[guia de identidade visual](docs/IDENTIDADE_VISUAL.md).
 
 - Change design tokens and global styles in `packages/ui/src/styles/globals.css`
 - Update shared primitives in `packages/ui/src/components/*`
