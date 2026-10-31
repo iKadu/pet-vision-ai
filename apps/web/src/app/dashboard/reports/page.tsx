@@ -14,6 +14,8 @@ import {
   ScanLine,
   TriangleAlert,
 } from 'lucide-react';
+import Link from 'next/link';
+import type { Route } from 'next';
 import { useMemo, useState } from 'react';
 
 import { trpc } from '@/utils/trpc';
@@ -161,6 +163,7 @@ export default function ReportsPage() {
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Analise as sessões, detecções, identificações e alertas registrados pelo seu monitoramento.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link href={'/dashboard/reports/experiments' as Route} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary"><Activity className="h-3.5 w-3.5" />Experimentos</Link>
             <button type="button" onClick={() => downloadReport('csv')} disabled={!overview} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />CSV</button>
             <button type="button" onClick={() => downloadReport('json')} disabled={!overview} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />JSON</button>
             <button type="button" onClick={() => void overviewQuery.refetch()} disabled={overviewQuery.isFetching} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${overviewQuery.isFetching ? 'animate-spin' : ''}`} />Atualizar dados</button>

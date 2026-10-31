@@ -1,5 +1,6 @@
 import { protectedProcedure, publicProcedure, router } from "../index";
 import { camerasRouter } from "./cameras";
+import { experimentsRouter } from "./experiments";
 import { monitoringPreferencesRouter } from "./monitoring-preferences";
 import { monitoringSessionsRouter } from "./monitoring-sessions";
 import { petsRouter } from "./pets";
@@ -17,6 +18,7 @@ export const appRouter = router({
     };
   }),
   cameras: camerasRouter,
+  experiments: experimentsRouter,
   monitoringPreferences: monitoringPreferencesRouter,
   monitoringSessions: monitoringSessionsRouter,
   pets: petsRouter,
