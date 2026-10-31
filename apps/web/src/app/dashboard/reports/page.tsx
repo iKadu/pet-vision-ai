@@ -20,6 +20,7 @@ import { useMemo, useState } from 'react';
 
 import { trpc } from '@/utils/trpc';
 import { buildReportExport, type ReportExportFormat } from '@tccpet/api/reporting/report-export';
+import { buildTimelineChartExport, type TimelineChartFormat } from '@tccpet/api/reporting/timeline-chart-export';
 
 const EVENT_TYPES = ['identification', 'detection', 'metrics', 'activity_changed', 'pet_left'] as const;
 const IDENTIFICATION_STATUSES = ['identified', 'confirming', 'possible', 'unknown'] as const;
@@ -109,6 +110,8 @@ export default function ReportsPage() {
   const [experimentalSessionId, setExperimentalSessionId] = useState('');
   const [eventType, setEventType] = useState<EventType | 'all'>('all');
   const [identificationStatus, setIdentificationStatus] = useState<IdentificationStatus | 'all'>('all');
+  const [chartExportError, setChartExportError] = useState('');
+  const [isExportingChart, setIsExportingChart] = useState(false);
 
   const filterOptionsQuery = useQuery(trpc.reports.filterOptions.queryOptions());
   const filters = useMemo(() => ({
@@ -153,6 +156,30 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   }
 
+  async function downloadTimelineChart(format: TimelineChartFormat) {
+    if (!overview?.timeline.length || isExportingChart) return;
+    setChartExportError('');
+    setIsExportingChart(true);
+    try {
+      const exported = await buildTimelineChartExport(format, overview.timeline);
+      const blob = typeof exported.content === 'string'
+        ? new Blob([exported.content], { type: exported.mimeType })
+        : exported.content;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = exported.fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (error) {
+      setChartExportError(error instanceof Error ? error.message : 'Não foi possível exportar o gráfico.');
+    } finally {
+      setIsExportingChart(false);
+    }
+  }
+
   return (
     <div className="min-h-screen text-foreground">
       <div className="mx-auto max-w-[1320px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
@@ -166,9 +193,12 @@ export default function ReportsPage() {
             <Link href={'/dashboard/reports/experiments' as Route} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary"><Activity className="h-3.5 w-3.5" />Experimentos</Link>
             <button type="button" onClick={() => downloadReport('csv')} disabled={!overview} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />CSV</button>
             <button type="button" onClick={() => downloadReport('json')} disabled={!overview} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />JSON</button>
+            <button type="button" onClick={() => void downloadTimelineChart('svg')} disabled={!overview?.timeline.length || isExportingChart} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />Gráfico SVG</button>
+            <button type="button" onClick={() => void downloadTimelineChart('png')} disabled={!overview?.timeline.length || isExportingChart} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />{isExportingChart ? 'Gerando...' : 'Gráfico PNG'}</button>
             <button type="button" onClick={() => void overviewQuery.refetch()} disabled={overviewQuery.isFetching} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${overviewQuery.isFetching ? 'animate-spin' : ''}`} />Atualizar dados</button>
           </div>
         </header>
+        {chartExportError && <p className="mt-3 text-xs font-medium text-destructive" role="alert">{chartExportError}</p>}
 
         <section aria-label="Filtros do relatório" className="mt-6 rounded-[26px] border border-border/80 bg-card/80 p-4 shadow-[0_10px_28px_oklch(0_0_0_/_0.035)] backdrop-blur-sm sm:p-5">
           <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-card-foreground">Recorte da análise</h2></div><button type="button" onClick={resetFilters} className="text-xs font-semibold text-primary hover:text-primary-hover">Limpar filtros</button></div>

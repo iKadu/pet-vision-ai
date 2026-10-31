@@ -13,6 +13,7 @@
     "test:ai": "cd apps/ai-engine && .venv\\Scripts\\python.exe -m pytest tests",
     "test:evaluation": "tsx --test scripts/evaluation/identification-metrics.test.ts",
     "test:reports": "tsx --test scripts/reports/report-export.test.ts",
+    "test:report-chart": "tsx --test scripts/reports/timeline-chart-export.test.ts",
     "build": "turbo run build",
     "check-types": "turbo run check-types",
     "db:push": "turbo run db:push -F @tccpet/db --",
