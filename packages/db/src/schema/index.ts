@@ -4,3 +4,4 @@ export {};
 export * from "./pets";
 export * from "./cameras";
 export * from "./monitoring-preferences";
+export * from "./monitoring-sessions";

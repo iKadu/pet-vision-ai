@@ -36,6 +36,13 @@
       "when": 1790520878265,
       "tag": "0004_monitoring-preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793464403516,
+      "tag": "0005_nostalgic_redwing",
+      "breakpoints": true
     }
   ]
 }

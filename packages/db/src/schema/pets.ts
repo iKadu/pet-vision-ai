@@ -1,6 +1,7 @@
 import { pgTable, text, timestamp, uuid, customType, doublePrecision, jsonb, index } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+import { monitoringSessions } from "./monitoring-sessions";
 
 // Tipo customizado para suportar o vetor de 512 dimensões (Re-ID)
 const vector512 = customType<{ data: number[]; driverData: string }>({
@@ -58,11 +59,22 @@ export const petEvents = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    monitoringSessionId: uuid("monitoring_session_id").references(() => monitoringSessions.id, {
+      onDelete: "set null",
+    }),
     petId: uuid("pet_id").references(() => pets.id, { onDelete: "set null" }),
     eventType: text("event_type").notNull(),
     confidence: doublePrecision("confidence"),
     details: jsonb("details").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("pet_events_user_created_idx").on(table.userId, table.createdAt)],
+  (table) => [
+    index("pet_events_user_created_idx").on(table.userId, table.createdAt),
+    index("pet_events_user_session_created_idx").on(
+      table.userId,
+      table.monitoringSessionId,
+      table.createdAt,
+    ),
+    index("pet_events_user_type_created_idx").on(table.userId, table.eventType, table.createdAt),
+  ],
 );
