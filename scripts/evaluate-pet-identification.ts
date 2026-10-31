@@ -5,6 +5,10 @@ import {
   summarizeIdentificationEvaluation,
   type IdentificationEvaluationResult,
 } from "./evaluation/identification-metrics";
+import {
+  summarizeVerificationPairs,
+  type VerificationPair,
+} from "./evaluation/verification-metrics";
 
 dotenv.config({ path: path.resolve(process.cwd(), "apps/web/.env") });
 
@@ -46,6 +50,32 @@ function median(values: number[]) {
 
 function formatScore(value: number | null) {
   return value === null ? "n/a" : value.toFixed(3);
+}
+
+function buildVerificationPairs(samples: EmbeddingSample[]): VerificationPair[] {
+  const groups = new Map<string, EmbeddingSample[]>();
+  for (const sample of samples) {
+    const key = [sample.userId, sample.species, sample.modelName, sample.pretrainedWeights].join("\u0000");
+    const group = groups.get(key) ?? [];
+    group.push(sample);
+    groups.set(key, group);
+  }
+
+  const pairs: VerificationPair[] = [];
+  for (const group of groups.values()) {
+    for (let queryIndex = 0; queryIndex < group.length; queryIndex += 1) {
+      for (let candidateIndex = queryIndex + 1; candidateIndex < group.length; candidateIndex += 1) {
+        const query = group[queryIndex]!;
+        const candidate = group[candidateIndex]!;
+        pairs.push({
+          similarity: cosineSimilarity(query.values, candidate.values),
+          isSamePet: query.petId === candidate.petId,
+        });
+      }
+    }
+  }
+
+  return pairs;
 }
 
 const requestedUserId = process.argv[2];
@@ -150,6 +180,7 @@ const weakestCorrectMargin = correctMargins.length ? Math.min(...correctMargins)
 const strongestIncorrectMargin = incorrectMargins.length
   ? Math.max(...incorrectMargins)
   : null;
+const verificationSummary = summarizeVerificationPairs(buildVerificationPairs(samples));
 
 console.log("\nAvaliação leave-one-out de identificação de pets");
 console.log(`Amostras válidas: ${samples.length}`);
@@ -218,4 +249,21 @@ if (results.length === 0) {
       .join(" | ");
     console.log(`- ${row.actualPetName} → ${predictions}`);
   }
+
+  console.log("\nVerificação binária por pares (diagnóstico interno):");
+  console.log(`Pares comparados: ${verificationSummary.totalPairs}`);
+  console.log(`Pares do mesmo pet: ${verificationSummary.positivePairs}`);
+  console.log(`Pares de pets diferentes: ${verificationSummary.negativePairs}`);
+  console.log(`ROC AUC: ${formatScore(verificationSummary.rocAuc)}`);
+  console.log(`Precisão-revocação (AP): ${formatScore(verificationSummary.averagePrecision)}`);
+  if (verificationSummary.recommendedThreshold) {
+    console.log(
+      `Limiar pelo índice de Youden: ${verificationSummary.recommendedThreshold.threshold.toFixed(3)} ` +
+      `(sensibilidade ${verificationSummary.recommendedThreshold.sensitivity.toFixed(3)}, ` +
+      `especificidade ${verificationSummary.recommendedThreshold.specificity.toFixed(3)})`,
+    );
+  } else {
+    console.log("São necessários pares positivos e negativos para calcular ROC/AUC e sugerir um limiar.");
+  }
+  console.log("A ROC e a AP calibram somente a similaridade; a margem continua sendo avaliada separadamente.");
 }
