@@ -34,18 +34,56 @@ def intersection_over_union(first: dict[str, float], second: dict[str, float]) -
     return intersection / union if union > 0 else 0.0
 
 
+def intersection_over_smaller_area(
+    first: dict[str, float], second: dict[str, float]
+) -> float:
+    """Mede quanto a menor caixa está contida na outra.
+
+    IoU é apropriado para caixas com tamanhos parecidos, mas pode ser baixo
+    quando uma detecção duplicada envolve quase toda a outra. Nesse caso, a
+    cobertura da menor caixa é o sinal mais confiável de duplicidade.
+    """
+    left = max(first["x"], second["x"])
+    top = max(first["y"], second["y"])
+    right = min(first["x"] + first["width"], second["x"] + second["width"])
+    bottom = min(first["y"] + first["height"], second["y"] + second["height"])
+    intersection = max(0.0, right - left) * max(0.0, bottom - top)
+    smallest_area = min(
+        first["width"] * first["height"],
+        second["width"] * second["height"],
+    )
+    return intersection / smallest_area if smallest_area > 0 else 0.0
+
+
 def suppress_overlapping_detections(
-    detections: list[dict[str, Any]], iou_threshold: float = 0.7
+    detections: list[dict[str, Any]],
+    iou_threshold: float = 0.7,
+    containment_threshold: float = 0.85,
 ) -> list[dict[str, Any]]:
-    """Mantém a caixa mais confiante quando a mesma espécie é detectada duas vezes."""
+    """Mantém a caixa mais confiante quando a mesma classe é detectada duas vezes.
+
+    A regra combina IoU para caixas de tamanho semelhante e contenção para
+    caixas aninhadas. A segunda evita que o tracker receba dois IDs para o
+    mesmo cão quando o detector retorna uma caixa ampla e outra menor sobre o
+    mesmo animal.
+    """
     if not 0 < iou_threshold <= 1:
         raise ValueError("O limiar de IoU deve estar entre 0 e 1")
+    if not 0 < containment_threshold <= 1:
+        raise ValueError("O limiar de contenção deve estar entre 0 e 1")
 
     kept: list[dict[str, Any]] = []
     for detection in sorted(detections, key=lambda item: item["confidence"], reverse=True):
         duplicated = any(
             detection["class_id"] == kept_detection["class_id"]
-            and intersection_over_union(detection["bbox"], kept_detection["bbox"]) >= iou_threshold
+            and (
+                intersection_over_union(detection["bbox"], kept_detection["bbox"])
+                >= iou_threshold
+                or intersection_over_smaller_area(
+                    detection["bbox"], kept_detection["bbox"]
+                )
+                >= containment_threshold
+            )
             for kept_detection in kept
         )
         if not duplicated:

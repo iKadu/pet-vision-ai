@@ -20,7 +20,10 @@ import {
 } from 'lucide-react';
 
 import { StreamDetectionOverlay } from '@/components/stream-detection-overlay';
-import { type StreamDetection } from '@/lib/identification-display';
+import {
+  suppressDuplicateStreamDetections,
+  type StreamDetection,
+} from '@/lib/identification-display';
 import { activateAiStream, AI_ENGINE_URL } from '@/lib/ai-stream';
 import { trpc } from '@/utils/trpc';
 
@@ -117,7 +120,9 @@ export default function CamerasPage() {
     }
   }, [streamStatusQuery.data]);
 
-  const streamDetections = streamStatusQuery.data?.detections ?? [];
+  const streamDetections = suppressDuplicateStreamDetections(
+    streamStatusQuery.data?.detections ?? [],
+  );
   const frameWidth = streamStatusQuery.data?.frame_width || 16;
   const frameHeight = streamStatusQuery.data?.frame_height || 9;
   const targetFps = streamStatusQuery.data?.target_fps ?? 2;

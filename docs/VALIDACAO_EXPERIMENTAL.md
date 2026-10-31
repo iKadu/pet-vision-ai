@@ -114,6 +114,7 @@ Não versione `.env`, URLs com credenciais, `DATABASE_URL`,
 | Padding do recorte para embedding | 0,08 | `main.py` |
 | Tamanho mínimo do recorte | 96 px | `main.py` |
 | IoU para supressão de detecções duplicadas | 0,55 | `main.py` |
+| Contenção para supressão de caixas aninhadas | 0,85 | `main.py` |
 | Máximo de pontos da trajetória | 120 | `main.py` |
 | Inatividade máxima de trajetória | 30 s | `main.py` |
 | Janela de atividade | 10 s | `main.py` |

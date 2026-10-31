@@ -72,6 +72,34 @@ class NormalizeDetectionsTests(unittest.TestCase):
 
         self.assertEqual(result, [detections[0]])
 
+    def test_suppresses_a_box_contained_in_a_larger_duplicate(self):
+        detections = [
+            {"class_id": 16, "confidence": 0.95, "bbox": {"x": 0.2, "y": 0.2, "width": 0.5, "height": 0.5}},
+            {"class_id": 16, "confidence": 0.82, "bbox": {"x": 0.3, "y": 0.3, "width": 0.2, "height": 0.2}},
+        ]
+
+        result = suppress_overlapping_detections(
+            detections,
+            iou_threshold=0.55,
+            containment_threshold=0.85,
+        )
+
+        self.assertEqual(result, [detections[0]])
+
+    def test_keeps_nearby_dogs_when_neither_overlap_rule_is_met(self):
+        detections = [
+            {"class_id": 16, "confidence": 0.95, "bbox": {"x": 0.1, "y": 0.2, "width": 0.3, "height": 0.4}},
+            {"class_id": 16, "confidence": 0.82, "bbox": {"x": 0.35, "y": 0.2, "width": 0.3, "height": 0.4}},
+        ]
+
+        result = suppress_overlapping_detections(
+            detections,
+            iou_threshold=0.55,
+            containment_threshold=0.85,
+        )
+
+        self.assertEqual(result, detections)
+
     def test_parses_a_yolo_compatible_detection_image_size(self):
         self.assertEqual(parse_detection_image_size(None), 768)
         self.assertEqual(parse_detection_image_size("640"), 640)

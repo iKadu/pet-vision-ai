@@ -97,6 +97,9 @@ IDENTIFICATION_MIN_CROP_SIZE = int(os.getenv("IDENTIFICATION_MIN_CROP_SIZE", "96
 DETECTION_DUPLICATE_IOU_THRESHOLD = float(
     os.getenv("DETECTION_DUPLICATE_IOU_THRESHOLD", "0.55")
 )
+DETECTION_DUPLICATE_CONTAINMENT_THRESHOLD = float(
+    os.getenv("DETECTION_DUPLICATE_CONTAINMENT_THRESHOLD", "0.85")
+)
 TRACKING_WEBHOOK_INTERVAL_SECONDS = float(os.getenv("TRACKING_WEBHOOK_INTERVAL_SECONDS", "1"))
 last_processing_latency_ms = 0.0
 last_cycle_latency_ms = 0.0
@@ -348,7 +351,9 @@ def process_stream():
             latest_frame_height = frame_height
             detections = normalize_detections(boxes, frame_width, frame_height, TARGET_CLASSES)
             detections = suppress_overlapping_detections(
-                detections, DETECTION_DUPLICATE_IOU_THRESHOLD
+                detections,
+                DETECTION_DUPLICATE_IOU_THRESHOLD,
+                DETECTION_DUPLICATE_CONTAINMENT_THRESHOLD,
             )
             detections = trajectory_manager.update(detections, current_time)
             detections, activity_events = activity_classifier.update(detections, current_time)

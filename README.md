@@ -233,6 +233,7 @@ parâmetros experimentais estão em `apps/ai-engine/.env`:
 | `STREAM_PREVIEW_FPS` | Taxa máxima de exibição do preview |
 | `DETECTION_IMAGE_SIZE` | Tamanho de entrada usado na detecção |
 | `DETECTION_CONFIDENCE_THRESHOLD` | Confiança mínima das detecções |
+| `DETECTION_DUPLICATE_CONTAINMENT_THRESHOLD` | Cobertura mínima para remover caixas aninhadas do mesmo cão |
 | `IDENTIFICATION_INTERVAL_SECONDS` | Intervalo entre tentativas de identificação |
 | `DEFAULT_ABSENCE_ALERT_SECONDS` | Tolerância antes do alerta de ausência |
 | `DEFAULT_NOTIFICATION_COOLDOWN_SECONDS` | Intervalo mínimo entre notificações repetidas |
