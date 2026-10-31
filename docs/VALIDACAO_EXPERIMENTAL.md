@@ -171,6 +171,19 @@ npm run dev
 banco. Ela é útil como diagnóstico interno, mas não substitui a futura avaliação
 com imagens de consulta independentes.
 
+Para gerar figuras e um resumo reprocessável da rodada, informe uma pasta local
+de evidências. A pasta `artifacts/` é ignorada pelo Git:
+
+```powershell
+npm run evaluate:identification -- --output artifacts/evaluation/rodada-YYYY-MM-DD
+```
+
+O comando produz `curva-roc-identificacao.svg`,
+`curva-precisao-revocacao-identificacao.svg` e
+`resumo-avaliacao-identificacao.json`. As curvas avaliam a separação binária
+entre pares do mesmo pet e de pets diferentes; elas calibram a similaridade e
+não substituem a avaliação da margem de decisão nem a validação independente.
+
 ## 4. Registro obrigatório de cada experimento
 
 Antes de começar uma nova execução, anote:

@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -9,6 +10,10 @@ import {
   summarizeVerificationPairs,
   type VerificationPair,
 } from "./evaluation/verification-metrics";
+import {
+  buildPrecisionRecallChartSvg,
+  buildRocChartSvg,
+} from "./evaluation/verification-chart-export";
 
 dotenv.config({ path: path.resolve(process.cwd(), "apps/web/.env") });
 
@@ -52,6 +57,39 @@ function formatScore(value: number | null) {
   return value === null ? "n/a" : value.toFixed(3);
 }
 
+function parseCliOptions(argumentsList: string[]) {
+  let requestedUserId: string | undefined;
+  let outputDirectory: string | undefined;
+
+  for (let index = 0; index < argumentsList.length; index += 1) {
+    const argument = argumentsList[index]!;
+    if (argument === "--output") {
+      const value = argumentsList[index + 1];
+      if (!value || value.startsWith("--")) throw new Error("Informe uma pasta após --output.");
+      outputDirectory = value;
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith("--output=")) {
+      outputDirectory = argument.slice("--output=".length);
+      if (!outputDirectory) throw new Error("Informe uma pasta após --output=.");
+      continue;
+    }
+    if (argument === "--user-id") {
+      const value = argumentsList[index + 1];
+      if (!value || value.startsWith("--")) throw new Error("Informe um usuário após --user-id.");
+      requestedUserId = value;
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith("--")) throw new Error(`Argumento desconhecido: ${argument}`);
+    if (requestedUserId) throw new Error("Informe somente um usuário para a avaliação.");
+    requestedUserId = argument;
+  }
+
+  return { requestedUserId, outputDirectory };
+}
+
 function buildVerificationPairs(samples: EmbeddingSample[]): VerificationPair[] {
   const groups = new Map<string, EmbeddingSample[]>();
   for (const sample of samples) {
@@ -78,7 +116,7 @@ function buildVerificationPairs(samples: EmbeddingSample[]): VerificationPair[] 
   return pairs;
 }
 
-const requestedUserId = process.argv[2];
+const { requestedUserId, outputDirectory } = parseCliOptions(process.argv.slice(2));
 const rawSamples = await db
   .select({
     id: petEmbeddings.id,
@@ -266,4 +304,61 @@ if (results.length === 0) {
     console.log("São necessários pares positivos e negativos para calcular ROC/AUC e sugerir um limiar.");
   }
   console.log("A ROC e a AP calibram somente a similaridade; a margem continua sendo avaliada separadamente.");
+}
+
+if (outputDirectory) {
+  const generatedAt = new Date();
+  const resolvedOutputDirectory = path.resolve(process.cwd(), outputDirectory);
+  const evaluationEvidence = {
+    schemaVersion: "petvision.identification-evaluation.v1",
+    generatedAt: generatedAt.toISOString(),
+    method: "leave-one-out-reference-embeddings",
+    scope: "Diagnóstico interno com referências cadastradas; não substitui imagens de consulta independentes.",
+    inputs: {
+      validSamples: samples.length,
+      evaluableQueries: results.length,
+      skippedWithoutPair,
+      filteredByUser: Boolean(requestedUserId),
+      modelNames: [...new Set(samples.map((sample) => sample.modelName))].sort(),
+      pretrainedWeights: [...new Set(samples.map((sample) => sample.pretrainedWeights))].sort(),
+    },
+    configuredThresholds: {
+      similarity: env.PET_MATCH_MIN_SIMILARITY,
+      margin: env.PET_MATCH_MIN_MARGIN,
+    },
+    identification: {
+      top1Correct: correct.length,
+      top1Accuracy: results.length ? correct.length / results.length : null,
+      confirmedCorrect: decisionSummary.confirmedCorrect,
+      falseIdentifications: decisionSummary.falseIdentifications,
+      ambiguous: decisionSummary.ambiguous,
+      rejected: decisionSummary.rejected,
+      confusionMatrix: decisionSummary.confusionMatrix,
+    },
+    verification: verificationSummary,
+  };
+
+  await mkdir(resolvedOutputDirectory, { recursive: true });
+  await Promise.all([
+    writeFile(
+      path.join(resolvedOutputDirectory, "curva-roc-identificacao.svg"),
+      buildRocChartSvg(verificationSummary, { generatedAt }),
+      "utf8",
+    ),
+    writeFile(
+      path.join(resolvedOutputDirectory, "curva-precisao-revocacao-identificacao.svg"),
+      buildPrecisionRecallChartSvg(verificationSummary, { generatedAt }),
+      "utf8",
+    ),
+    writeFile(
+      path.join(resolvedOutputDirectory, "resumo-avaliacao-identificacao.json"),
+      `${JSON.stringify(evaluationEvidence, null, 2)}\n`,
+      "utf8",
+    ),
+  ]);
+
+  console.log("\nArtefatos auditáveis gerados:");
+  console.log(`- ${path.join(resolvedOutputDirectory, "curva-roc-identificacao.svg")}`);
+  console.log(`- ${path.join(resolvedOutputDirectory, "curva-precisao-revocacao-identificacao.svg")}`);
+  console.log(`- ${path.join(resolvedOutputDirectory, "resumo-avaliacao-identificacao.json")}`);
 }

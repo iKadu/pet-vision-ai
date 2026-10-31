@@ -11,7 +11,7 @@
     "dev:web": "turbo run dev -F web --",
     "dev:ai": "cd apps/ai-engine && .venv\\Scripts\\python.exe -m uvicorn main:app --reload --port 8000",
     "test:ai": "cd apps/ai-engine && .venv\\Scripts\\python.exe -m pytest tests",
-    "test:evaluation": "tsx --test scripts/evaluation/identification-metrics.test.ts scripts/evaluation/verification-metrics.test.ts",
+    "test:evaluation": "tsx --test scripts/evaluation/identification-metrics.test.ts scripts/evaluation/verification-metrics.test.ts scripts/evaluation/verification-chart-export.test.ts",
     "test:reports": "tsx --test scripts/reports/report-export.test.ts",
     "test:report-chart": "tsx --test scripts/reports/timeline-chart-export.test.ts",
     "test:report-events": "tsx --test scripts/reports/event-record-export.test.ts",
