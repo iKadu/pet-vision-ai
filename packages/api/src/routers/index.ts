@@ -3,6 +3,7 @@ import { camerasRouter } from "./cameras";
 import { monitoringPreferencesRouter } from "./monitoring-preferences";
 import { monitoringSessionsRouter } from "./monitoring-sessions";
 import { petsRouter } from "./pets";
+import { reportsRouter } from "./reports";
 import { todoRouter } from "./todo";
 
 export const appRouter = router({
@@ -19,6 +20,7 @@ export const appRouter = router({
   monitoringPreferences: monitoringPreferencesRouter,
   monitoringSessions: monitoringSessionsRouter,
   pets: petsRouter,
+  reports: reportsRouter,
   todo: todoRouter,
 });
 export type AppRouter = typeof appRouter;
