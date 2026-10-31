@@ -4,7 +4,7 @@ import { ArrowUpRight, Plus, UsersRound } from "lucide-react";
 export default function AnimalsPage() {
   return (
     <div className="min-h-screen text-foreground">
-      <div className="mx-auto max-w-[1280px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
+      <div className="mx-auto max-w-[1440px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
         <header className="border-b border-border/80 pb-7">
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">Perfis e referências</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-foreground sm:text-4xl">Animais</h1>
