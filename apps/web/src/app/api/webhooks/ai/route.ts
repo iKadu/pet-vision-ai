@@ -1,6 +1,6 @@
 import { appRouter } from "@tccpet/api/routers/index";
 import { timingSafeEqual } from "node:crypto";
-import { getAiStreamTokenUserId } from "@/lib/ai-stream-token";
+import { getAiStreamTokenContext } from "@/lib/ai-stream-token";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -25,7 +25,7 @@ const trackingDetectionInput = z.object({
   bbox: z.object({ x: z.number().finite().min(0).max(1), y: z.number().finite().min(0).max(1), width: z.number().finite().min(0).max(1), height: z.number().finite().min(0).max(1) }),
   centroid: normalizedPoint,
   activity: z.object({ state: z.enum(["unknown", "active", "resting"]), movement_distance: z.number().finite().nonnegative(), window_seconds: z.number().finite().nonnegative(), samples: z.number().int().nonnegative() }).optional(),
-  identification: z.object({ status: z.enum(["identified", "unknown"]), pet_id: z.string().uuid().optional() }).passthrough().optional(),
+  identification: z.object({ status: z.enum(["identified", "confirming", "possible", "unknown"]), pet_id: z.string().uuid().optional() }).passthrough().optional(),
 });
 const monitoringEventInput = z.object({ event_type: z.literal("activity_changed"), track_id: z.number().int().nonnegative(), pet_id: z.string().uuid().optional(), source: z.string().trim().min(1).max(500), centroid: normalizedPoint, activity: z.unknown().optional() });
 const petLeftEventInput = z.object({
@@ -66,19 +66,22 @@ export async function POST(request: Request) {
   }
   try {
     const payload = (await request.json()) as AiWebhookPayload;
-    const streamUserId =
+    const streamContext =
       typeof payload.stream_token === "string"
-        ? getAiStreamTokenUserId(payload.stream_token)
+        ? getAiStreamTokenContext(payload.stream_token)
         : null;
 
-    if (!streamUserId) {
+    if (!streamContext) {
       return NextResponse.json({ ok: false, error: "Invalid stream token" }, { status: 401 });
     }
+
+    const { userId: streamUserId, monitoringSessionId } = streamContext;
 
     const response = {
       ok: true,
       receivedAt: new Date().toISOString(),
       streamUserId,
+      monitoringSessionId,
       totalDetections: payload.details?.detections?.length ?? 0,
     };
 
@@ -91,6 +94,7 @@ export async function POST(request: Request) {
       const [event] = await caller.pets.recordMonitoringEvents({
         events: [{
           petId: parsed.data.pet_id ?? null,
+          monitoringSessionId,
           eventType: "pet_left",
           details: {
             source,
@@ -107,7 +111,7 @@ export async function POST(request: Request) {
     if (payload.event_type === "pet_monitoring_events") {
       const parsed = z.array(monitoringEventInput).min(1).max(25).safeParse(payload.details?.events);
       if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid monitoring events" }, { status: 400 });
-      const events = await caller.pets.recordMonitoringEvents({ events: parsed.data.map((event) => ({ petId: event.pet_id ?? null, eventType: event.event_type, details: { trackId: event.track_id, source: event.source, centroid: event.centroid, activity: event.activity } })) });
+      const events = await caller.pets.recordMonitoringEvents({ events: parsed.data.map((event) => ({ petId: event.pet_id ?? null, monitoringSessionId, eventType: event.event_type, details: { trackId: event.track_id, source: event.source, centroid: event.centroid, activity: event.activity } })) });
       return NextResponse.json({ ...response, totalEvents: events.length });
     }
 
@@ -116,8 +120,8 @@ export async function POST(request: Request) {
       if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid tracking update" }, { status: 400 });
       const source = typeof payload.source === "string" ? payload.source.slice(0, 500) : "unknown";
       const events = [
-        ...parsed.data.detections.map((detection) => ({ petId: detection.identification?.pet_id ?? null, eventType: "detection" as const, confidence: detection.confidence, details: { trackId: detection.track_id, source, bbox: detection.bbox, centroid: detection.centroid, activity: detection.activity } })),
-        ...(parsed.data.metrics ? [{ eventType: "metrics" as const, details: { source, totalDetections: parsed.data.detections.length, ...parsed.data.metrics } }] : []),
+        ...parsed.data.detections.map((detection) => ({ petId: detection.identification?.pet_id ?? null, monitoringSessionId, eventType: "detection" as const, confidence: detection.confidence, details: { trackId: detection.track_id, source, bbox: detection.bbox, centroid: detection.centroid, activity: detection.activity, identification: detection.identification ?? null } })),
+        ...(parsed.data.metrics ? [{ monitoringSessionId, eventType: "metrics" as const, details: { source, totalDetections: parsed.data.detections.length, ...parsed.data.metrics } }] : []),
       ];
       const stored = await caller.pets.recordMonitoringEvents({ events });
       return NextResponse.json({ ...response, totalEvents: stored.length });
@@ -138,6 +142,7 @@ export async function POST(request: Request) {
         parsedEvents.data.identifications.map(({ track_id, match }) =>
           caller.pets.recordIdentificationEvent({
             petId: match.petId,
+            monitoringSessionId,
             confidence: match.similarity,
             details: { trackId: track_id, source: parsedEvents.data.source },
           }),

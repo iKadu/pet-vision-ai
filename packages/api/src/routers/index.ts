@@ -1,6 +1,7 @@
 import { protectedProcedure, publicProcedure, router } from "../index";
 import { camerasRouter } from "./cameras";
 import { monitoringPreferencesRouter } from "./monitoring-preferences";
+import { monitoringSessionsRouter } from "./monitoring-sessions";
 import { petsRouter } from "./pets";
 import { todoRouter } from "./todo";
 
@@ -16,6 +17,7 @@ export const appRouter = router({
   }),
   cameras: camerasRouter,
   monitoringPreferences: monitoringPreferencesRouter,
+  monitoringSessions: monitoringSessionsRouter,
   pets: petsRouter,
   todo: todoRouter,
 });

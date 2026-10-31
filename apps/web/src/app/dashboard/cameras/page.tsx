@@ -143,7 +143,7 @@ export default function CamerasPage() {
         }
 
         try {
-          await activateAiStream(camera.source);
+          await startMonitoring(camera.source, camera.id);
           setRunning(true);
           void streamStatusQuery.refetch();
           setMessage(`“${camera.name}” foi salva como câmera padrão e está ativa no feed ao vivo.`);
@@ -163,6 +163,8 @@ export default function CamerasPage() {
     }),
   );
   const setDefaultCamera = useMutation(trpc.cameras.setDefault.mutationOptions());
+  const startMonitoringSession = useMutation(trpc.monitoringSessions.start.mutationOptions());
+  const finishMonitoringSession = useMutation(trpc.monitoringSessions.finishActive.mutationOptions());
   const deleteCamera = useMutation(
     trpc.cameras.delete.mutationOptions({
       onSuccess: () => {
@@ -173,6 +175,27 @@ export default function CamerasPage() {
   );
 
   const defaultCamera = camerasQuery.data?.find((camera) => camera.isDefault);
+
+  async function startMonitoring(sourceValue: string, cameraId?: string) {
+    const monitoringSession = await startMonitoringSession.mutateAsync({ cameraId });
+    try {
+      await activateAiStream(sourceValue, monitoringSession.id);
+      return monitoringSession;
+    } catch (error) {
+      try {
+        await finishMonitoringSession.mutateAsync({ status: 'failed' });
+      } catch {
+        // A falha de encerramento não deve esconder o erro original do motor.
+      }
+      throw error;
+    }
+  }
+
+  async function stopMonitoring() {
+    const response = await fetchEngine('/stream/stop', { method: 'POST' });
+    if (!response.ok) throw new Error('Não foi possível alterar o monitoramento');
+    await finishMonitoringSession.mutateAsync({ status: 'completed' });
+  }
 
   useEffect(() => {
     if (!defaultCamera) return;
@@ -200,10 +223,9 @@ export default function CamerasPage() {
     setIsTogglingStream(true);
     try {
       if (action === 'start') {
-        await activateAiStream(defaultCamera?.source ?? getSourceValue());
+        await startMonitoring(defaultCamera?.source ?? getSourceValue(), defaultCamera?.id);
       } else {
-        const response = await fetchEngine('/stream/stop', { method: 'POST' });
-        if (!response.ok) throw new Error('Não foi possível alterar o monitoramento');
+        await stopMonitoring();
       }
       setRunning(action === 'start');
       setMessage(action === 'start' ? 'Monitoramento iniciado.' : 'Monitoramento pausado.');
@@ -229,7 +251,7 @@ export default function CamerasPage() {
       setSource(updatedDefaultCamera.type as CameraType);
       if (updatedDefaultCamera.type === 'rtsp') setRtspUrl(updatedDefaultCamera.source);
       void camerasQuery.refetch();
-      await activateAiStream(updatedDefaultCamera.source);
+      await startMonitoring(updatedDefaultCamera.source, updatedDefaultCamera.id);
       setRunning(true);
       void streamStatusQuery.refetch();
       setMessage(`“${updatedDefaultCamera.name}” agora é a câmera padrão e está ativa no feed ao vivo.`);

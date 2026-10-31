@@ -5,6 +5,7 @@ const TOKEN_TTL_SECONDS = 60 * 60;
 
 type StreamTokenPayload = {
   expiresAt: number;
+  monitoringSessionId?: string;
   userId: string;
 };
 
@@ -12,9 +13,10 @@ function sign(value: string) {
   return createHmac("sha256", env.BETTER_AUTH_SECRET).update(value).digest("base64url");
 }
 
-export function createAiStreamToken(userId: string) {
+export function createAiStreamToken(userId: string, monitoringSessionId: string) {
   const payload: StreamTokenPayload = {
     userId,
+    monitoringSessionId,
     expiresAt: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
   };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -22,7 +24,7 @@ export function createAiStreamToken(userId: string) {
   return `${encodedPayload}.${sign(encodedPayload)}`;
 }
 
-export function getAiStreamTokenUserId(token: string) {
+export function getAiStreamTokenContext(token: string) {
   const [encodedPayload, receivedSignature, ...extraParts] = token.split(".");
   if (!encodedPayload || !receivedSignature || extraParts.length > 0) return null;
 
@@ -50,8 +52,19 @@ export function getAiStreamTokenUserId(token: string) {
       return null;
     }
 
-    return payload.userId;
+    return {
+      userId: payload.userId,
+      monitoringSessionId:
+        typeof payload.monitoringSessionId === "string" && payload.monitoringSessionId
+          ? payload.monitoringSessionId
+          : null,
+    };
   } catch {
     return null;
   }
+}
+
+/** Mantido para consumidores que só precisam identificar o usuário. */
+export function getAiStreamTokenUserId(token: string) {
+  return getAiStreamTokenContext(token)?.userId ?? null;
 }

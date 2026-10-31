@@ -1,5 +1,6 @@
 import { db } from "@tccpet/db";
 import { petEmbeddings, petEvents, pets } from "@tccpet/db/schema/pets";
+import { monitoringSessions } from "@tccpet/db/schema/monitoring-sessions";
 import { env } from "@tccpet/env/server";
 import { TRPCError } from "@trpc/server";
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
@@ -29,6 +30,7 @@ const embeddingMatchInput = z.object({
 
 const identificationEventInput = z.object({
   petId: z.string().uuid(),
+  monitoringSessionId: z.string().uuid().nullable().optional(),
   confidence: z.number().finite().min(0).max(1),
   details: z.object({
     trackId: z.number().int().nonnegative(),
@@ -39,6 +41,7 @@ const identificationEventInput = z.object({
 const monitoringEventTypes = ["identification", "detection", "metrics", "activity_changed", "pet_left"] as const;
 const monitoringEventInput = z.object({
   petId: z.string().uuid().nullable().optional(),
+  monitoringSessionId: z.string().uuid().nullable().optional(),
   eventType: z.enum(monitoringEventTypes),
   confidence: z.number().finite().min(0).max(1).nullable().optional(),
   details: z.record(z.string(), z.unknown()),
@@ -249,10 +252,31 @@ export const petsRouter = router({
         });
       }
 
+      if (input.monitoringSessionId) {
+        const [monitoringSession] = await db
+          .select({ id: monitoringSessions.id })
+          .from(monitoringSessions)
+          .where(
+            and(
+              eq(monitoringSessions.id, input.monitoringSessionId),
+              eq(monitoringSessions.userId, ctx.session.user.id),
+            ),
+          )
+          .limit(1);
+
+        if (!monitoringSession) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Sessão de monitoramento não encontrada",
+          });
+        }
+      }
+
       const [event] = await db
         .insert(petEvents)
         .values({
           userId: ctx.session.user.id,
+          monitoringSessionId: input.monitoringSessionId ?? null,
           petId: pet.id,
           eventType: "identification",
           confidence: input.confidence,
@@ -278,8 +302,24 @@ export const petsRouter = router({
           .where(and(eq(pets.userId, ctx.session.user.id), inArray(pets.id, petIds)));
         if (ownedPets.length !== petIds.length) throw new TRPCError({ code: "NOT_FOUND", message: "Pet não encontrado" });
       }
+      const monitoringSessionIds = [...new Set(input.events.flatMap((event) => event.monitoringSessionId ? [event.monitoringSessionId] : []))];
+      if (monitoringSessionIds.length) {
+        const ownedSessions = await db
+          .select({ id: monitoringSessions.id })
+          .from(monitoringSessions)
+          .where(
+            and(
+              eq(monitoringSessions.userId, ctx.session.user.id),
+              inArray(monitoringSessions.id, monitoringSessionIds),
+            ),
+          );
+        if (ownedSessions.length !== monitoringSessionIds.length) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Sessão de monitoramento não encontrada" });
+        }
+      }
       return db.insert(petEvents).values(input.events.map((event) => ({
         userId: ctx.session.user.id,
+        monitoringSessionId: event.monitoringSessionId ?? null,
         petId: event.petId ?? null,
         eventType: event.eventType,
         confidence: event.confidence ?? null,
