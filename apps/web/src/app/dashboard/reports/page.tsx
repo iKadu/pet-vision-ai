@@ -19,6 +19,7 @@ import type { Route } from 'next';
 import { useMemo, useState } from 'react';
 
 import { trpc } from '@/utils/trpc';
+import { IdentificationEvaluationPanel } from '@/components/identification-evaluation-panel';
 import { buildEventRecordsCsv } from '@tccpet/api/reporting/event-record-export';
 import { buildReportExport, type ReportExportFormat } from '@tccpet/api/reporting/report-export';
 import { buildTimelineChartExport, type TimelineChartFormat } from '@tccpet/api/reporting/timeline-chart-export';
@@ -134,6 +135,11 @@ export default function ReportsPage() {
   });
   const eventExportQuery = useQuery({
     ...trpc.reports.events.queryOptions({ ...filters, limit: 5_000 }),
+    enabled: false,
+    retry: false,
+  });
+  const identificationEvaluationQuery = useQuery({
+    ...trpc.reports.identificationEvaluation.queryOptions(),
     enabled: false,
     retry: false,
   });
@@ -278,6 +284,13 @@ export default function ReportsPage() {
 
             <aside className="rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Qualidade da identificação</p><h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Leituras no feed</h2><div className="mt-5 space-y-3">{IDENTIFICATION_STATUSES.map((status) => <div key={status} className="flex items-center justify-between gap-3 rounded-xl bg-surface-raised/70 px-3 py-2.5"><span className="text-xs font-medium text-foreground">{identificationLabels[status]}</span><span className="font-mono text-xs font-semibold text-card-foreground">{overview.indicators.identificationStatuses[status]}</span></div>)}</div><div className="mt-6 border-t border-border/80 pt-5"><p className="text-xs font-semibold text-foreground">Confiança média da detecção</p><p className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-card-foreground">{formatMetric(overview.indicators.averageDetectionConfidence === null ? null : overview.indicators.averageDetectionConfidence * 100, '%', 0)}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">A confiança do detector não é a certeza da identidade individual.</p></div></aside>
           </div>}
+
+          <IdentificationEvaluationPanel
+            evaluation={identificationEvaluationQuery.data}
+            isGenerating={identificationEvaluationQuery.isFetching}
+            error={identificationEvaluationQuery.error?.message ?? null}
+            onGenerate={() => void identificationEvaluationQuery.refetch()}
+          />
 
           <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
             <section className="rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6"><div className="flex items-center justify-between gap-3 border-b border-border/80 pb-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Identificações</p><h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Por animal</h2></div><CheckCircle2 className="h-5 w-5 text-success" /></div>{overview.identificationsByPet.length ? <div className="mt-2 divide-y divide-border/70">{overview.identificationsByPet.map((item) => <div key={item.petId} className="flex items-center justify-between gap-4 py-4"><div><p className="text-sm font-semibold text-card-foreground">{item.petName}</p><p className="mt-1 text-xs text-muted-foreground">Similaridade média: {formatMetric(item.averageSimilarity === null ? null : item.averageSimilarity * 100, '%', 0)}</p></div><span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">{item.total}</span></div>)}</div> : <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma identificação confirmada com os filtros atuais.</p>}</section>
