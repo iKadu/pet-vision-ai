@@ -91,6 +91,9 @@ npm run test:ai
 npm run evaluate:identification
 ```
 
+O protocolo, o ambiente auditado e as evidências pendentes da validação do TCC
+estão em [docs/VALIDACAO_EXPERIMENTAL.md](docs/VALIDACAO_EXPERIMENTAL.md).
+
 - `check-types` confere os tipos TypeScript do monorepo.
 - `test:ai` executa os testes automatizados do AI Engine, sem abrir câmera ou
   banco.

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation } from '@tanstack/react-query';
-import { ArrowUpRight, ImagePlus, PawPrint, Plus, Sparkles } from 'lucide-react';
+import { ArrowUpRight, ImagePlus, PawPrint, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -11,7 +11,7 @@ import { trpc } from '@/utils/trpc';
 export default function NewAnimalPage() {
   const router = useRouter();
   const [name, setName] = useState('');
-  const [species, setSpecies] = useState<'dog' | 'cat'>('dog');
+  const species = 'dog' as const;
   const [photo, setPhoto] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -121,21 +121,13 @@ export default function NewAnimalPage() {
               <input id="animal-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex.: Thor" autoComplete="off" className="mt-2 h-11 w-full rounded-xl border border-border bg-card px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15" />
             </label>
 
-            <fieldset className="mt-5">
-              <legend className="text-xs font-semibold text-foreground">Espécie</legend>
-              <div className="mt-2 grid grid-cols-2 gap-3">
-                {(['dog', 'cat'] as const).map((option) => {
-                  const active = species === option;
-                  const label = option === 'dog' ? 'Cachorro' : 'Gato';
-                  return (
-                    <button key={option} type="button" aria-pressed={active} onClick={() => setSpecies(option)} className={`flex h-12 items-center gap-3 rounded-xl border px-3 text-left transition ${active ? 'border-primary/45 bg-accent text-accent-foreground shadow-sm' : 'border-border bg-card text-muted-foreground hover:border-primary/30 hover:bg-surface-raised hover:text-foreground'}`}>
-                      <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${active ? 'bg-primary text-primary-foreground' : 'bg-surface-raised text-muted-foreground'}`}><PawPrint className="h-3.5 w-3.5" /></span>
-                      <span className="text-sm font-semibold">{label}</span>
-                    </button>
-                  );
-                })}
+            <section className="mt-5" aria-labelledby="animal-species-label">
+              <p id="animal-species-label" className="text-xs font-semibold text-foreground">Espécie monitorada</p>
+              <div className="mt-2 flex h-12 items-center gap-3 rounded-xl border border-primary/45 bg-accent px-3 text-accent-foreground shadow-sm">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground"><PawPrint className="h-3.5 w-3.5" /></span>
+                <span className="text-sm font-semibold">Cachorro</span>
               </div>
-            </fieldset>
+            </section>
 
             {uploadError || createPet.error?.message ? (
               <p aria-live="polite" className="mt-5 rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2.5 text-xs leading-5 text-destructive">{uploadError ?? createPet.error?.message}</p>
@@ -179,10 +171,7 @@ export default function NewAnimalPage() {
             {photo && !savedPet && <label htmlFor="animal-photo" className="mt-3 inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover"><ImagePlus className="h-3.5 w-3.5" />Trocar foto</label>}
 
             <div className="mt-6 border-t border-border/80 pt-5">
-              <div className="flex items-start gap-2.5">
-                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                <p className="text-xs leading-5 text-muted-foreground">Após salvar, adicione outras fotos na página de perfis para melhorar a identificação em ângulos, distâncias e iluminações diferentes.</p>
-              </div>
+              <p className="text-xs leading-5 text-muted-foreground">Depois de salvar, você poderá adicionar outras fotos ao perfil. Novos ângulos, distâncias e iluminações ajudam o reconhecimento.</p>
             </div>
           </aside>
         </form>
