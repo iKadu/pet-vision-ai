@@ -7,6 +7,7 @@ import {
   Camera,
   CheckCircle2,
   Clock3,
+  Download,
   Filter,
   Gauge,
   RefreshCw,
@@ -16,6 +17,7 @@ import {
 import { useMemo, useState } from 'react';
 
 import { trpc } from '@/utils/trpc';
+import { buildReportExport, type ReportExportFormat } from '@tccpet/api/reporting/report-export';
 
 const EVENT_TYPES = ['identification', 'detection', 'metrics', 'activity_changed', 'pet_left'] as const;
 const IDENTIFICATION_STATUSES = ['identified', 'confirming', 'possible', 'unknown'] as const;
@@ -135,6 +137,20 @@ export default function ReportsPage() {
     setIdentificationStatus('all');
   }
 
+  function downloadReport(format: ReportExportFormat) {
+    if (!overview) return;
+    const exported = buildReportExport(format, overview);
+    const blob = new Blob([exported.content], { type: exported.mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = exported.fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="min-h-screen text-foreground">
       <div className="mx-auto max-w-[1320px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
@@ -144,10 +160,11 @@ export default function ReportsPage() {
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-foreground sm:text-4xl">Relatórios</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Analise as sessões, detecções, identificações e alertas registrados pelo seu monitoramento.</p>
           </div>
-          <button type="button" onClick={() => void overviewQuery.refetch()} disabled={overviewQuery.isFetching} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50">
-            <RefreshCw className={`h-3.5 w-3.5 ${overviewQuery.isFetching ? 'animate-spin' : ''}`} />
-            Atualizar dados
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => downloadReport('csv')} disabled={!overview} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />CSV</button>
+            <button type="button" onClick={() => downloadReport('json')} disabled={!overview} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />JSON</button>
+            <button type="button" onClick={() => void overviewQuery.refetch()} disabled={overviewQuery.isFetching} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${overviewQuery.isFetching ? 'animate-spin' : ''}`} />Atualizar dados</button>
+          </div>
         </header>
 
         <section aria-label="Filtros do relatório" className="mt-6 rounded-[26px] border border-border/80 bg-card/80 p-4 shadow-[0_10px_28px_oklch(0_0_0_/_0.035)] backdrop-blur-sm sm:p-5">
