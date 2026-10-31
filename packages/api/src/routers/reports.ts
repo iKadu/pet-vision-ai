@@ -1,12 +1,14 @@
 import { db } from "@tccpet/db";
 import { cameras } from "@tccpet/db/schema/cameras";
 import { experimentalSessions, monitoringSessions } from "@tccpet/db/schema/monitoring-sessions";
-import { petEvents, pets } from "@tccpet/db/schema/pets";
+import { petEmbeddings, petEvents, pets } from "@tccpet/db/schema/pets";
+import { env } from "@tccpet/env/server";
 import { TRPCError } from "@trpc/server";
 import { and, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import z from "zod";
 
 import { protectedProcedure, router } from "../index";
+import { evaluateIdentificationEmbeddings } from "../evaluation/identification-evaluation";
 
 const monitoringEventTypes = [
   "identification",
@@ -16,6 +18,7 @@ const monitoringEventTypes = [
   "pet_left",
 ] as const;
 const identificationStatuses = ["identified", "confirming", "possible", "unknown"] as const;
+const MAX_IDENTIFICATION_EVALUATION_SAMPLES = 250;
 
 const reportFiltersShape = {
   cameraId: z.string().uuid().optional(),
@@ -138,6 +141,52 @@ export const reportsRouter = router({
       experimentalSessions: availableExperiments,
       eventTypes: monitoringEventTypes,
       identificationStatuses,
+    };
+  }),
+
+  identificationEvaluation: protectedProcedure.query(async ({ ctx }) => {
+    const rawSamples = await db
+      .select({
+        id: petEmbeddings.id,
+        petId: petEmbeddings.petId,
+        userId: pets.userId,
+        petName: pets.name,
+        species: pets.species,
+        values: petEmbeddings.embedding,
+        modelName: petEmbeddings.modelName,
+        pretrainedWeights: petEmbeddings.pretrainedWeights,
+      })
+      .from(petEmbeddings)
+      .innerJoin(pets, eq(petEmbeddings.petId, pets.id))
+      .where(eq(pets.userId, ctx.session.user.id))
+      .limit(MAX_IDENTIFICATION_EVALUATION_SAMPLES + 1);
+
+    if (rawSamples.length > MAX_IDENTIFICATION_EVALUATION_SAMPLES) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `A avaliação pelo painel aceita até ${MAX_IDENTIFICATION_EVALUATION_SAMPLES} referências por vez.`,
+      });
+    }
+
+    const evaluation = evaluateIdentificationEmbeddings(rawSamples);
+    return {
+      schemaVersion: "petvision.identification-evaluation.v1",
+      generatedAt: new Date().toISOString(),
+      method: "pairwise-reference-embeddings",
+      scope: "Diagnóstico interno com referências cadastradas; não substitui imagens de consulta independentes.",
+      inputs: {
+        validSamples: evaluation.validSamples,
+        excludedSamples: evaluation.excludedSamples,
+        pets: evaluation.pets,
+        modelNames: evaluation.modelNames,
+        pretrainedWeights: evaluation.pretrainedWeights,
+        embeddingDimensions: evaluation.embeddingDimensions,
+      },
+      configuredThresholds: {
+        similarity: env.PET_MATCH_MIN_SIMILARITY,
+        margin: env.PET_MATCH_MIN_MARGIN,
+      },
+      verification: evaluation.verification,
     };
   }),
 

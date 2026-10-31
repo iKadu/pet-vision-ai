@@ -7,13 +7,13 @@ import {
   type IdentificationEvaluationResult,
 } from "./evaluation/identification-metrics";
 import {
-  summarizeVerificationPairs,
-  type VerificationPair,
-} from "./evaluation/verification-metrics";
-import {
   buildPrecisionRecallChartSvg,
   buildRocChartSvg,
 } from "./evaluation/verification-chart-export";
+import {
+  evaluateIdentificationEmbeddings,
+  type IdentificationEmbeddingSample,
+} from "@tccpet/api/evaluation/identification-evaluation";
 
 dotenv.config({ path: path.resolve(process.cwd(), "apps/web/.env") });
 
@@ -24,16 +24,7 @@ const [{ db }, { petEmbeddings, pets }, { env }, { eq }] = await Promise.all([
   import("drizzle-orm"),
 ]);
 
-type EmbeddingSample = {
-  id: string;
-  petId: string;
-  userId: string;
-  petName: string;
-  species: string;
-  values: number[];
-  modelName: string;
-  pretrainedWeights: string;
-};
+type EmbeddingSample = IdentificationEmbeddingSample;
 
 type EvaluationResult = IdentificationEvaluationResult & {
   bestNegativeSimilarity: number | null;
@@ -88,32 +79,6 @@ function parseCliOptions(argumentsList: string[]) {
   }
 
   return { requestedUserId, outputDirectory };
-}
-
-function buildVerificationPairs(samples: EmbeddingSample[]): VerificationPair[] {
-  const groups = new Map<string, EmbeddingSample[]>();
-  for (const sample of samples) {
-    const key = [sample.userId, sample.species, sample.modelName, sample.pretrainedWeights].join("\u0000");
-    const group = groups.get(key) ?? [];
-    group.push(sample);
-    groups.set(key, group);
-  }
-
-  const pairs: VerificationPair[] = [];
-  for (const group of groups.values()) {
-    for (let queryIndex = 0; queryIndex < group.length; queryIndex += 1) {
-      for (let candidateIndex = queryIndex + 1; candidateIndex < group.length; candidateIndex += 1) {
-        const query = group[queryIndex]!;
-        const candidate = group[candidateIndex]!;
-        pairs.push({
-          similarity: cosineSimilarity(query.values, candidate.values),
-          isSamePet: query.petId === candidate.petId,
-        });
-      }
-    }
-  }
-
-  return pairs;
 }
 
 const { requestedUserId, outputDirectory } = parseCliOptions(process.argv.slice(2));
@@ -218,7 +183,7 @@ const weakestCorrectMargin = correctMargins.length ? Math.min(...correctMargins)
 const strongestIncorrectMargin = incorrectMargins.length
   ? Math.max(...incorrectMargins)
   : null;
-const verificationSummary = summarizeVerificationPairs(buildVerificationPairs(samples));
+const verificationSummary = evaluateIdentificationEmbeddings(samples).verification;
 
 console.log("\nAvaliação leave-one-out de identificação de pets");
 console.log(`Amostras válidas: ${samples.length}`);
