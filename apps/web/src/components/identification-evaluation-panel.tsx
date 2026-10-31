@@ -1,13 +1,25 @@
 'use client';
 
-import { BarChart3, BrainCircuit, RefreshCw, TriangleAlert } from 'lucide-react';
+import { useState } from 'react';
+
+import {
+  buildPrecisionRecallChartSvg,
+  buildRocChartSvg,
+  VERIFICATION_CHART_DIMENSIONS,
+} from '@tccpet/api/evaluation/verification-chart-export';
+import { BarChart3, BrainCircuit, Download, RefreshCw, TriangleAlert } from 'lucide-react';
 
 type CurvePoint = {
   threshold: number;
+  truePositives: number;
+  falsePositives: number;
+  trueNegatives: number;
+  falseNegatives: number;
   truePositiveRate: number | null;
   falsePositiveRate: number | null;
   precision: number | null;
   recall: number | null;
+  specificity: number | null;
 };
 
 export type IdentificationEvaluation = {
@@ -44,6 +56,50 @@ export type IdentificationEvaluation = {
 
 function formatScore(value: number | null, digits = 3) {
   return value === null ? '—' : value.toFixed(digits).replace('.', ',');
+}
+
+type ExportKind = 'roc-svg' | 'roc-png' | 'precision-recall-svg' | 'precision-recall-png' | 'json';
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+async function svgToPngBlob(svg: string) {
+  const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(svgBlob);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error('Não foi possível converter o gráfico para PNG.'));
+      element.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    const scale = 2;
+    canvas.width = VERIFICATION_CHART_DIMENSIONS.width * scale;
+    canvas.height = VERIFICATION_CHART_DIMENSIONS.height * scale;
+    const context = canvas.getContext('2d');
+
+    if (!context) throw new Error('O navegador não disponibilizou a área de exportação.');
+
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('Não foi possível gerar o arquivo PNG.'));
+      }, 'image/png');
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 function CurveChart({
@@ -119,14 +175,66 @@ export function IdentificationEvaluationPanel({
   const prevalence = verification && verification.totalPairs > 0
     ? verification.positivePairs / verification.totalPairs
     : undefined;
+  const [exporting, setExporting] = useState<ExportKind | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const exportEvaluation = async (kind: ExportKind) => {
+    if (!evaluation || !verification) return;
+
+    setExporting(kind);
+    setExportError(null);
+
+    try {
+      const date = new Date(evaluation.generatedAt);
+      const dateSuffix = Number.isNaN(date.getTime())
+        ? 'avaliacao'
+        : date.toISOString().slice(0, 10);
+      const metadata = {
+        generatedAt: evaluation.generatedAt,
+        subtitle: 'Avaliação interna de referências cadastradas',
+      };
+      const rocSvg = () => buildRocChartSvg(verification, metadata);
+      const precisionRecallSvg = () => buildPrecisionRecallChartSvg(verification, metadata);
+
+      if (kind === 'json') {
+        downloadBlob(
+          new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), evaluation }, null, 2)], { type: 'application/json' }),
+          `petvision-avaliacao-identificacao-${dateSuffix}.json`,
+        );
+        return;
+      }
+
+      const isRoc = kind.startsWith('roc');
+      const svg = isRoc ? rocSvg() : precisionRecallSvg();
+      const filename = `petvision-${isRoc ? 'curva-roc' : 'curva-precisao-revocacao'}-${dateSuffix}`;
+
+      if (kind.endsWith('svg')) {
+        downloadBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), `${filename}.svg`);
+      } else {
+        downloadBlob(await svgToPngBlob(svg), `${filename}.png`);
+      }
+    } catch (caughtError) {
+      setExportError(caughtError instanceof Error ? caughtError.message : 'Não foi possível exportar a evidência.');
+    } finally {
+      setExporting(null);
+    }
+  };
 
   return (
     <section className="mt-6 rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6">
       <div className="flex flex-col gap-4 border-b border-border/80 pb-5 sm:flex-row sm:items-start sm:justify-between"><div className="flex gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary"><BrainCircuit className="h-5 w-5" /></span><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Validação da identificação</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Separação entre os perfis cadastrados</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">Compare as referências visuais do seu cadastro para verificar como a similaridade distingue o mesmo cão de cães diferentes.</p></div></div><button type="button" onClick={onGenerate} disabled={isGenerating} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"><RefreshCw className={`h-3.5 w-3.5 ${isGenerating ? 'animate-spin' : ''}`} />{isGenerating ? 'Calculando...' : evaluation ? 'Gerar novamente' : 'Gerar avaliação'}</button></div>
       {error && <div className="mt-5 flex items-start gap-3 rounded-2xl border border-destructive/20 bg-destructive/[0.05] px-4 py-4 text-sm text-destructive"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" /><p>{error}</p></div>}
+      {exportError && <div role="alert" className="mt-5 flex items-start gap-3 rounded-2xl border border-destructive/20 bg-destructive/[0.05] px-4 py-4 text-sm text-destructive"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" /><p>{exportError}</p></div>}
       {!evaluation && !isGenerating && !error && <div className="mt-6 rounded-2xl border border-dashed border-border bg-background/55 px-5 py-10 text-center"><BarChart3 className="mx-auto h-7 w-7 text-primary" /><h3 className="mt-3 text-sm font-semibold text-card-foreground">Avaliação ainda não gerada</h3><p className="mx-auto mt-2 max-w-xl text-xs leading-5 text-muted-foreground">São necessárias ao menos duas referências do mesmo cão e referências de outro cão para calcular ROC, AUC e Precisão–Revocação.</p></div>}
       {isGenerating && !evaluation && <div className="mt-6 grid gap-4 md:grid-cols-3">{[0, 1, 2].map((item) => <div key={item} className="h-28 animate-pulse rounded-2xl bg-surface-raised/70" />)}</div>}
       {evaluation && verification && <div className="mt-6"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="ROC AUC" value={formatScore(verification.rocAuc)} detail="Discriminação entre pares" /><Metric label="Precisão–Revocação" value={formatScore(verification.averagePrecision)} detail="AP da classificação binária" /><Metric label="Pares comparados" value={verification.totalPairs} detail={`${verification.positivePairs} positivos · ${verification.negativePairs} negativos`} /><Metric label="Limiar de Youden" value={formatScore(verification.recommendedThreshold?.threshold ?? null)} detail={verification.recommendedThreshold ? `Sensibilidade ${formatScore(verification.recommendedThreshold.sensitivity)} · especificidade ${formatScore(verification.recommendedThreshold.specificity)}` : 'Dados insuficientes'} /></div>
+        <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-border/80 bg-background/55 p-4 lg:flex-row lg:items-center lg:justify-between"><div><h3 className="text-sm font-semibold text-card-foreground">Exportar evidências da rodada</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">SVG é vetorial para a monografia; PNG possui resolução ampliada; JSON preserva os dados e parâmetros exibidos.</p></div><div className="flex flex-wrap gap-2">{([
+          ['roc-svg', 'ROC SVG', verification.rocAuc === null],
+          ['roc-png', 'ROC PNG', verification.rocAuc === null],
+          ['precision-recall-svg', 'P-R SVG', verification.averagePrecision === null],
+          ['precision-recall-png', 'P-R PNG', verification.averagePrecision === null],
+          ['json', 'JSON', false],
+        ] as const).map(([kind, label, unavailable]) => <button key={kind} type="button" onClick={() => exportEvaluation(kind)} disabled={unavailable || exporting !== null} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-[11px] font-semibold text-card-foreground transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"><Download className="h-3.5 w-3.5" />{exporting === kind ? 'Gerando...' : label}</button>)}</div></div>
         {verification.rocAuc === null ? <div className="mt-5 rounded-2xl border border-warning/25 bg-warning/[0.07] px-4 py-4 text-sm text-foreground"><p className="font-semibold">Ainda faltam pares comparáveis.</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Cadastre referências de pelo menos dois cães, mantendo duas ou mais fotos por perfil.</p></div> : <div className="mt-6 grid gap-5 xl:grid-cols-2"><CurveChart chart="roc" points={verification.rocPoints} recommendedThreshold={verification.recommendedThreshold} /><CurveChart chart="precision-recall" points={verification.precisionRecallPoints} recommendedThreshold={verification.recommendedThreshold} baseline={prevalence} /></div>}
         <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"><span>{evaluation.inputs.validSamples} referências válidas · {evaluation.inputs.pets} perfis</span><span>Modelo: {evaluation.inputs.modelNames.join(', ') || '—'}</span><span>Limiar configurado: {formatScore(evaluation.configuredThresholds.similarity)} · margem {formatScore(evaluation.configuredThresholds.margin)}</span></div>
         <p className="mt-3 text-xs leading-5 text-muted-foreground">{evaluation.scope} A curva avalia apenas a similaridade visual; a margem de decisão do feed é verificada separadamente.</p>

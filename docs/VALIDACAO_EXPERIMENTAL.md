@@ -184,6 +184,23 @@ O comando produz `curva-roc-identificacao.svg`,
 entre pares do mesmo pet e de pets diferentes; elas calibram a similaridade e
 não substituem a avaliação da margem de decisão nem a validação independente.
 
+### 3.1 Exportação pelo painel de Relatórios
+
+Como alternativa ao comando, a mesma avaliação pode ser gerada em
+**Relatórios → Validação da identificação → Gerar avaliação**. O cálculo usa
+somente os embeddings dos pets do usuário autenticado e acontece sob demanda;
+não altera o banco de dados.
+
+Após a geração, o painel disponibiliza as seguintes evidências da mesma
+rodada: curva ROC e curva Precisão–Revocação em **SVG** (vetorial, indicado
+para a monografia), as duas curvas em **PNG** de resolução ampliada e um
+arquivo **JSON** com os dados, parâmetros e data de exportação. Guarde esses
+arquivos junto do identificador da rodada, commit e demais evidências locais.
+
+> A avaliação gerada no painel continua sendo interna às referências
+> cadastradas. Não a apresente como resultado de identificação em imagens
+> independentes até que o experimento correspondente seja executado.
+
 ## 4. Registro obrigatório de cada experimento
 
 Antes de começar uma nova execução, anote:
