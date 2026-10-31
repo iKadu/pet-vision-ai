@@ -6,6 +6,7 @@ import type { Route } from 'next';
 import { useEffect, useState } from 'react';
 import {
   Camera,
+  BarChart3,
   ChevronRight,
   Dog,
   LayoutDashboard,
@@ -61,6 +62,13 @@ export default function DashboardShell({ children }: Props) {
       description: 'Perfis e referências',
       icon: Dog,
       active: pathname.startsWith('/dashboard/animals'),
+    },
+    {
+      href: '/dashboard/reports' as Route,
+      label: 'Relatórios',
+      description: 'Métricas e exportações',
+      icon: BarChart3,
+      active: pathname.startsWith('/dashboard/reports'),
     },
   ];
 
