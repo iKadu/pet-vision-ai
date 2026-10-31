@@ -17,7 +17,7 @@ const monitoringEventTypes = [
 ] as const;
 const identificationStatuses = ["identified", "confirming", "possible", "unknown"] as const;
 
-const reportFiltersInput = z.object({
+const reportFiltersShape = {
   cameraId: z.string().uuid().optional(),
   petId: z.string().uuid().optional(),
   monitoringSessionId: z.string().uuid().optional(),
@@ -26,7 +26,13 @@ const reportFiltersInput = z.object({
   identificationStatus: z.enum(identificationStatuses).optional(),
   from: z.string().datetime({ offset: true }).optional(),
   to: z.string().datetime({ offset: true }).optional(),
-}).default({});
+};
+
+const reportFiltersInput = z.object(reportFiltersShape).default({});
+const reportEventRecordsInput = z.object({
+  ...reportFiltersShape,
+  limit: z.number().int().min(1).max(5_000).default(50),
+}).default({ limit: 50 });
 
 type ReportFilters = z.infer<typeof reportFiltersInput>;
 
@@ -48,6 +54,41 @@ function reportDateRange(filters: ReportFilters) {
 
 function asNumber(value: number | null | undefined) {
   return value === null || value === undefined ? null : Number(value);
+}
+
+async function resolveMonitoringSessionId(userId: string, input: ReportFilters) {
+  let monitoringSessionId = input.monitoringSessionId;
+
+  if (!input.experimentalSessionId) {
+    return { monitoringSessionId, isEmptyExperimentalSession: false };
+  }
+
+  const [experimentalSession] = await db
+    .select({ monitoringSessionId: experimentalSessions.monitoringSessionId })
+    .from(experimentalSessions)
+    .where(
+      and(
+        eq(experimentalSessions.id, input.experimentalSessionId),
+        eq(experimentalSessions.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (!experimentalSession) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Sessão experimental não encontrada" });
+  }
+  if (!experimentalSession.monitoringSessionId) {
+    return { monitoringSessionId: null, isEmptyExperimentalSession: true };
+  }
+  if (input.monitoringSessionId && input.monitoringSessionId !== experimentalSession.monitoringSessionId) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "A sessão experimental selecionada pertence a outra sessão de monitoramento",
+    });
+  }
+
+  monitoringSessionId = experimentalSession.monitoringSessionId;
+  return { monitoringSessionId, isEmptyExperimentalSession: false };
 }
 
 export const reportsRouter = router({
@@ -104,43 +145,18 @@ export const reportsRouter = router({
     .input(reportFiltersInput)
     .query(async ({ ctx, input }) => {
       const { start, end } = reportDateRange(input);
-      let resolvedMonitoringSessionId = input.monitoringSessionId;
+      const resolvedSession = await resolveMonitoringSessionId(ctx.session.user.id, input);
+      const resolvedMonitoringSessionId = resolvedSession.monitoringSessionId;
 
-      if (input.experimentalSessionId) {
-        const [experimentalSession] = await db
-          .select({ monitoringSessionId: experimentalSessions.monitoringSessionId })
-          .from(experimentalSessions)
-          .where(
-            and(
-              eq(experimentalSessions.id, input.experimentalSessionId),
-              eq(experimentalSessions.userId, ctx.session.user.id),
-            ),
-          )
-          .limit(1);
-
-        if (!experimentalSession) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Sessão experimental não encontrada" });
-        }
-        if (!experimentalSession.monitoringSessionId) {
-          return {
-            range: { from: start.toISOString(), to: end.toISOString() },
-            filters: input,
-            indicators: emptyIndicators(),
-            timeline: [],
-            identificationsByPet: [],
-            sessions: [],
-          };
-        }
-        if (
-          input.monitoringSessionId &&
-          input.monitoringSessionId !== experimentalSession.monitoringSessionId
-        ) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "A sessão experimental selecionada pertence a outra sessão de monitoramento",
-          });
-        }
-        resolvedMonitoringSessionId = experimentalSession.monitoringSessionId;
+      if (resolvedSession.isEmptyExperimentalSession) {
+        return {
+          range: { from: start.toISOString(), to: end.toISOString() },
+          filters: input,
+          indicators: emptyIndicators(),
+          timeline: [],
+          identificationsByPet: [],
+          sessions: [],
+        };
       }
 
       const eventConditions = [
@@ -156,7 +172,7 @@ export const reportsRouter = router({
       if (input.eventTypes?.length) eventConditions.push(inArray(petEvents.eventType, input.eventTypes));
       if (input.identificationStatus) {
         eventConditions.push(
-          sql`${petEvents.details} -> 'identification' ->> 'status' = ${input.identificationStatus}`,
+          sql`coalesce(${petEvents.details} -> 'identification' ->> 'status', case when ${petEvents.eventType} = 'identification' then 'identified' end) = ${input.identificationStatus}`,
         );
       }
 
@@ -300,6 +316,68 @@ export const reportsRouter = router({
           ),
         })),
       };
+    }),
+
+  events: protectedProcedure
+    .input(reportEventRecordsInput)
+    .query(async ({ ctx, input }) => {
+      const { start, end } = reportDateRange(input);
+      const resolvedSession = await resolveMonitoringSessionId(ctx.session.user.id, input);
+
+      if (resolvedSession.isEmptyExperimentalSession) {
+        return [];
+      }
+
+      const conditions = [
+        eq(petEvents.userId, ctx.session.user.id),
+        gte(petEvents.createdAt, start),
+        lte(petEvents.createdAt, end),
+      ];
+      if (input.petId) conditions.push(eq(petEvents.petId, input.petId));
+      if (resolvedSession.monitoringSessionId) {
+        conditions.push(eq(petEvents.monitoringSessionId, resolvedSession.monitoringSessionId));
+      }
+      if (input.cameraId) conditions.push(eq(monitoringSessions.cameraId, input.cameraId));
+      if (input.eventTypes?.length) conditions.push(inArray(petEvents.eventType, input.eventTypes));
+      if (input.identificationStatus) {
+        conditions.push(sql`coalesce(${petEvents.details} -> 'identification' ->> 'status', case when ${petEvents.eventType} = 'identification' then 'identified' end) = ${input.identificationStatus}`);
+      }
+
+      const events = await db
+        .select({
+          id: petEvents.id,
+          createdAt: petEvents.createdAt,
+          eventType: petEvents.eventType,
+          confidence: petEvents.confidence,
+          petId: petEvents.petId,
+          petName: pets.name,
+          monitoringSessionId: petEvents.monitoringSessionId,
+          cameraId: monitoringSessions.cameraId,
+          cameraName: cameras.name,
+          trackId: sql<number | null>`nullif(${petEvents.details} ->> 'trackId', '')::integer`,
+          identificationStatus: sql<string | null>`coalesce(${petEvents.details} -> 'identification' ->> 'status', case when ${petEvents.eventType} = 'identification' then 'identified' end)`,
+          fps: sql<number | null>`nullif(${petEvents.details} ->> 'fps', '')::double precision`,
+          inferenceLatencyMs: sql<number | null>`nullif(${petEvents.details} ->> 'inference_latency_ms', '')::double precision`,
+          cycleLatencyMs: sql<number | null>`nullif(${petEvents.details} ->> 'cycle_latency_ms', '')::double precision`,
+          absenceDurationSeconds: sql<number | null>`nullif(${petEvents.details} ->> 'absentDurationSeconds', '')::double precision`,
+          activityState: sql<string | null>`${petEvents.details} -> 'activity' ->> 'state'`,
+        })
+        .from(petEvents)
+        .leftJoin(pets, eq(petEvents.petId, pets.id))
+        .leftJoin(monitoringSessions, eq(petEvents.monitoringSessionId, monitoringSessions.id))
+        .leftJoin(cameras, eq(monitoringSessions.cameraId, cameras.id))
+        .where(and(...conditions))
+        .orderBy(desc(petEvents.createdAt))
+        .limit(input.limit);
+
+      return events.map((event) => ({
+        ...event,
+        confidence: asNumber(event.confidence),
+        fps: asNumber(event.fps),
+        inferenceLatencyMs: asNumber(event.inferenceLatencyMs),
+        cycleLatencyMs: asNumber(event.cycleLatencyMs),
+        absenceDurationSeconds: asNumber(event.absenceDurationSeconds),
+      }));
     }),
 });
 

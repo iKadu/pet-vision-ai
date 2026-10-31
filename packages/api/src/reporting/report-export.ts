@@ -49,7 +49,7 @@ export type ReportExportFile = {
   mimeType: string;
 };
 
-function escapeCsv(value: unknown) {
+export function escapeCsv(value: unknown) {
   const text = value === null || value === undefined ? "" : String(value);
   return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }

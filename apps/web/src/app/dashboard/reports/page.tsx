@@ -19,6 +19,7 @@ import type { Route } from 'next';
 import { useMemo, useState } from 'react';
 
 import { trpc } from '@/utils/trpc';
+import { buildEventRecordsCsv } from '@tccpet/api/reporting/event-record-export';
 import { buildReportExport, type ReportExportFormat } from '@tccpet/api/reporting/report-export';
 import { buildTimelineChartExport, type TimelineChartFormat } from '@tccpet/api/reporting/timeline-chart-export';
 
@@ -112,6 +113,8 @@ export default function ReportsPage() {
   const [identificationStatus, setIdentificationStatus] = useState<IdentificationStatus | 'all'>('all');
   const [chartExportError, setChartExportError] = useState('');
   const [isExportingChart, setIsExportingChart] = useState(false);
+  const [eventExportError, setEventExportError] = useState('');
+  const [isExportingEvents, setIsExportingEvents] = useState(false);
 
   const filterOptionsQuery = useQuery(trpc.reports.filterOptions.queryOptions());
   const filters = useMemo(() => ({
@@ -125,6 +128,15 @@ export default function ReportsPage() {
     identificationStatus: identificationStatus === 'all' ? undefined : identificationStatus,
   }), [cameraId, eventType, experimentalSessionId, from, identificationStatus, monitoringSessionId, petId, to]);
   const overviewQuery = useQuery(trpc.reports.overview.queryOptions(filters));
+  const eventRecordsQuery = useQuery({
+    ...trpc.reports.events.queryOptions({ ...filters, limit: 50 }),
+    enabled: Boolean(overviewQuery.data),
+  });
+  const eventExportQuery = useQuery({
+    ...trpc.reports.events.queryOptions({ ...filters, limit: 5_000 }),
+    enabled: false,
+    retry: false,
+  });
   const overview = overviewQuery.data;
   const peakTimelineValue = Math.max(
     1,
@@ -180,6 +192,32 @@ export default function ReportsPage() {
     }
   }
 
+  async function downloadEventRecords() {
+    if (!overview || isExportingEvents) return;
+    setEventExportError('');
+    setIsExportingEvents(true);
+    try {
+      const result = await eventExportQuery.refetch();
+      if (!result.data) {
+        throw result.error ?? new Error('Não foi possível carregar os eventos para exportação.');
+      }
+      const exported = buildEventRecordsCsv(result.data);
+      const blob = new Blob([exported.content], { type: exported.mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = exported.fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (error) {
+      setEventExportError(error instanceof Error ? error.message : 'Não foi possível exportar os eventos.');
+    } finally {
+      setIsExportingEvents(false);
+    }
+  }
+
   return (
     <div className="min-h-screen text-foreground">
       <div className="mx-auto max-w-[1320px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
@@ -194,12 +232,14 @@ export default function ReportsPage() {
             <Link href={'/dashboard/reports/compare' as Route} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary"><BarChart3 className="h-3.5 w-3.5" />Comparar</Link>
             <button type="button" onClick={() => downloadReport('csv')} disabled={!overview} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />CSV</button>
             <button type="button" onClick={() => downloadReport('json')} disabled={!overview} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />JSON</button>
+            <button type="button" onClick={() => void downloadEventRecords()} disabled={!overview || isExportingEvents} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />{isExportingEvents ? 'Preparando...' : 'Eventos CSV'}</button>
             <button type="button" onClick={() => void downloadTimelineChart('svg')} disabled={!overview?.timeline.length || isExportingChart} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />Gráfico SVG</button>
             <button type="button" onClick={() => void downloadTimelineChart('png')} disabled={!overview?.timeline.length || isExportingChart} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />{isExportingChart ? 'Gerando...' : 'Gráfico PNG'}</button>
-            <button type="button" onClick={() => void overviewQuery.refetch()} disabled={overviewQuery.isFetching} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${overviewQuery.isFetching ? 'animate-spin' : ''}`} />Atualizar dados</button>
+            <button type="button" onClick={() => void Promise.all([overviewQuery.refetch(), eventRecordsQuery.refetch()])} disabled={overviewQuery.isFetching || eventRecordsQuery.isFetching} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${(overviewQuery.isFetching || eventRecordsQuery.isFetching) ? 'animate-spin' : ''}`} />Atualizar dados</button>
           </div>
         </header>
         {chartExportError && <p className="mt-3 text-xs font-medium text-destructive" role="alert">{chartExportError}</p>}
+        {eventExportError && <p className="mt-3 text-xs font-medium text-destructive" role="alert">{eventExportError}</p>}
 
         <section aria-label="Filtros do relatório" className="mt-6 rounded-[26px] border border-border/80 bg-card/80 p-4 shadow-[0_10px_28px_oklch(0_0_0_/_0.035)] backdrop-blur-sm sm:p-5">
           <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-card-foreground">Recorte da análise</h2></div><button type="button" onClick={resetFilters} className="text-xs font-semibold text-primary hover:text-primary-hover">Limpar filtros</button></div>
@@ -243,6 +283,11 @@ export default function ReportsPage() {
             <section className="rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6"><div className="flex items-center justify-between gap-3 border-b border-border/80 pb-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Identificações</p><h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Por animal</h2></div><CheckCircle2 className="h-5 w-5 text-success" /></div>{overview.identificationsByPet.length ? <div className="mt-2 divide-y divide-border/70">{overview.identificationsByPet.map((item) => <div key={item.petId} className="flex items-center justify-between gap-4 py-4"><div><p className="text-sm font-semibold text-card-foreground">{item.petName}</p><p className="mt-1 text-xs text-muted-foreground">Similaridade média: {formatMetric(item.averageSimilarity === null ? null : item.averageSimilarity * 100, '%', 0)}</p></div><span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">{item.total}</span></div>)}</div> : <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma identificação confirmada com os filtros atuais.</p>}</section>
             <section className="rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6"><div className="flex items-center justify-between gap-3 border-b border-border/80 pb-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Execuções</p><h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Sessões monitoradas</h2></div><Clock3 className="h-5 w-5 text-primary" /></div>{overview.sessions.length ? <div className="mt-2 divide-y divide-border/70">{overview.sessions.slice(0, 5).map((session) => <div key={session.id} className="flex items-center justify-between gap-4 py-4"><div className="min-w-0"><p className="truncate text-sm font-semibold text-card-foreground">{session.cameraName ?? 'Câmera removida'}</p><p className="mt-1 truncate text-xs text-muted-foreground">{formatDateTime(session.startedAt)} · {formatDuration(session.durationSeconds)}</p></div><span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${session.status === 'completed' ? 'bg-success/10 text-success' : session.status === 'failed' ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}`}>{session.status}</span></div>)}</div> : <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma sessão encontrada no período.</p>}</section>
           </div>
+
+          <section className="mt-6 rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6">
+            <div className="flex flex-col gap-3 border-b border-border/80 pb-5 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Rastreabilidade</p><h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Eventos registrados</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Os últimos 50 registros do recorte atual. A exportação inclui até 5.000 eventos, sem fonte de vídeo, imagens ou embeddings.</p></div><button type="button" onClick={() => void downloadEventRecords()} disabled={!overview || isExportingEvents} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />Exportar CSV</button></div>
+            {eventRecordsQuery.isPending ? <div className="mt-5 h-32 animate-pulse rounded-2xl bg-surface-raised/70" /> : eventRecordsQuery.isError ? <div className="mt-5 rounded-2xl border border-destructive/20 bg-destructive/[0.05] px-4 py-4 text-sm text-destructive">Não foi possível carregar os eventos detalhados. <button type="button" onClick={() => void eventRecordsQuery.refetch()} className="font-semibold underline">Tentar novamente</button></div> : eventRecordsQuery.data?.length ? <div className="mt-5 overflow-x-auto"><table className="min-w-[840px] w-full text-left text-xs"><thead className="border-b border-border/80 text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground"><tr><th className="pb-3 pr-4">Momento</th><th className="pb-3 pr-4">Evento</th><th className="pb-3 pr-4">Animal</th><th className="hidden pb-3 pr-4 lg:table-cell">Câmera</th><th className="pb-3 pr-4">Trilha</th><th className="pb-3 pr-4">Leitura</th><th className="pb-3">Dados</th></tr></thead><tbody className="divide-y divide-border/70">{eventRecordsQuery.data.map((event) => <tr key={event.id} className="text-muted-foreground"><td className="whitespace-nowrap py-3 pr-4 font-medium text-card-foreground">{formatDateTime(event.createdAt)}</td><td className="py-3 pr-4"><span className="rounded-full bg-surface-raised px-2 py-1 text-[10px] font-semibold text-foreground">{eventTypeLabels[event.eventType as EventType] ?? event.eventType}</span></td><td className="py-3 pr-4">{event.petName ?? '—'}</td><td className="hidden py-3 pr-4 lg:table-cell">{event.cameraName ?? '—'}</td><td className="py-3 pr-4 font-mono">{event.trackId ?? '—'}</td><td className="py-3 pr-4">{event.identificationStatus ? identificationLabels[event.identificationStatus as IdentificationStatus] ?? event.identificationStatus : '—'}</td><td className="py-3"><div className="flex flex-wrap gap-x-2 gap-y-1">{event.confidence !== null && <span>{formatMetric(event.confidence * 100, '%', 0)}</span>}{event.fps !== null && <span>{formatMetric(event.fps, ' FPS')}</span>}{event.cycleLatencyMs !== null && <span>{formatMetric(event.cycleLatencyMs, ' ms', 0)}</span>}{event.absenceDurationSeconds !== null && <span>{formatMetric(event.absenceDurationSeconds, ' s', 0)} ausente</span>}{event.activityState && <span>{event.activityState}</span>}</div></td></tr>)}</tbody></table></div> : <p className="py-8 text-center text-sm text-muted-foreground">Nenhum evento detalhado foi encontrado com os filtros atuais.</p>}
+          </section>
 
           <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><Camera className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />Os relatórios exibem somente eventos persistidos após o início da coleta por sessões. Dados anteriores podem não ter câmera ou sessão associada.</p>
         </>}
