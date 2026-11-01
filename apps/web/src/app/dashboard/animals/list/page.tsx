@@ -34,6 +34,10 @@ export default function AnimalsListPage() {
     breed: string;
   } | null>(null);
   const [petToDelete, setPetToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [referenceToDelete, setReferenceToDelete] = useState<{
+    id: string;
+    petName: string;
+  } | null>(null);
 
   const updatePet = useMutation(
     trpc.pets.update.mutationOptions({
@@ -49,6 +53,14 @@ export default function AnimalsListPage() {
         setEditingPet(null);
         setPetToDelete(null);
         void petsQuery.refetch();
+      },
+    }),
+  );
+  const deleteReference = useMutation(
+    trpc.pets.deleteEmbeddingReference.mutationOptions({
+      onSuccess: () => {
+        setReferenceToDelete(null);
+        void referencesQuery.refetch();
       },
     }),
   );
@@ -100,6 +112,10 @@ export default function AnimalsListPage() {
 
   function removePet(id: string, name: string) {
     if (!deletePet.isPending) setPetToDelete({ id, name });
+  }
+
+  function removeReference(id: string, petName: string) {
+    if (!deleteReference.isPending) setReferenceToDelete({ id, petName });
   }
 
   function addReference(event: React.ChangeEvent<HTMLInputElement>, petId: string) {
@@ -203,7 +219,12 @@ export default function AnimalsListPage() {
                         <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold text-card-foreground">Fotos de referência</p><p className="mt-1 text-[11px] leading-4 text-muted-foreground">{references.length === 0 ? 'Adicione imagens em outros ângulos.' : references.length < MAX_REFERENCE_PHOTOS ? 'Mais variedade melhora a identificação.' : 'Limite de referências atingido.'}</p></div><span className="rounded-full bg-surface-raised px-2 py-1 font-mono text-[10px] font-semibold text-muted-foreground">{references.length}/{MAX_REFERENCE_PHOTOS}</span></div>
 
                         <div className="mt-3 grid grid-cols-5 gap-2">
-                          {isLoadingReferences ? [0, 1, 2].map((index) => <span key={index} className="aspect-square animate-pulse rounded-lg border border-border/70 bg-surface-raised" aria-label="Carregando referência" />) : references.map((reference) => reference.sourcePhotoUrl ? <img key={reference.id} src={reference.sourcePhotoUrl} alt={`Referência de ${pet.name}`} className="aspect-square w-full rounded-lg border border-border/70 object-cover" /> : <span key={reference.id} className="flex aspect-square items-center justify-center rounded-lg bg-surface-raised text-muted-foreground" aria-label="Referência sem imagem"><Dog className="h-3.5 w-3.5" /></span>)}
+                          {isLoadingReferences ? [0, 1, 2].map((index) => <span key={index} className="aspect-square animate-pulse rounded-lg border border-border/70 bg-surface-raised" aria-label="Carregando referência" />) : references.map((reference) => (
+                            <div key={reference.id} className="group/reference relative aspect-square overflow-hidden rounded-lg border border-border/70 bg-surface-raised transition hover:border-destructive/65 hover:shadow-[0_0_0_2px_color-mix(in_oklch,var(--destructive)_18%,transparent)] focus-within:border-destructive/65 focus-within:shadow-[0_0_0_2px_color-mix(in_oklch,var(--destructive)_18%,transparent)]">
+                              {reference.sourcePhotoUrl ? <img src={reference.sourcePhotoUrl} alt={`Referência de ${pet.name}`} className="h-full w-full object-cover transition duration-200 group-hover/reference:scale-[1.04]" /> : <span className="flex h-full w-full items-center justify-center text-muted-foreground" aria-label="Referência sem imagem"><Dog className="h-3.5 w-3.5" /></span>}
+                              <button type="button" onClick={() => removeReference(reference.id, pet.name)} disabled={deleteReference.isPending} title="Remover foto de referência" aria-label={`Remover foto de referência de ${pet.name}`} className="absolute right-1 top-1 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md bg-destructive text-destructive-foreground opacity-0 shadow-sm transition hover:bg-destructive/90 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:ring-offset-card group-hover/reference:opacity-100 group-focus-within/reference:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" /></button>
+                            </div>
+                          ))}
                           {canAddReference && (
                             <label className="flex aspect-square cursor-pointer items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground transition hover:border-primary hover:bg-accent hover:text-primary">
                               <ImagePlus className="h-4 w-4" />
@@ -228,6 +249,18 @@ export default function AnimalsListPage() {
           </section>
         )}
       </div>
+      <DeleteConfirmationDialog
+        open={referenceToDelete !== null}
+        title="Remover foto de referência?"
+        description={<>A referência visual de <strong className="font-semibold text-card-foreground">{referenceToDelete?.petName}</strong> deixará de ser usada na identificação.</>}
+        confirmLabel="Remover referência"
+        pending={deleteReference.isPending}
+        error={deleteReference.isError ? (deleteReference.error instanceof Error ? deleteReference.error.message : 'Não foi possível remover a foto de referência. Tente novamente.') : null}
+        onCancel={() => setReferenceToDelete(null)}
+        onConfirm={() => {
+          if (referenceToDelete) deleteReference.mutate({ id: referenceToDelete.id });
+        }}
+      />
       <DeleteConfirmationDialog
         open={petToDelete !== null}
         title="Excluir perfil?"

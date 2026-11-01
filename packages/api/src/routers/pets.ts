@@ -13,6 +13,10 @@ const petIdInput = z.object({
   id: z.string().uuid(),
 });
 
+const embeddingReferenceIdInput = z.object({
+  id: z.string().uuid(),
+});
+
 const embeddingInput = z.object({
   petId: z.string().uuid(),
   values: z.array(z.number().finite()).length(512),
@@ -171,6 +175,36 @@ export const petsRouter = router({
       .where(eq(pets.userId, ctx.session.user.id))
       .orderBy(desc(petEmbeddings.createdAt));
   }),
+
+  deleteEmbeddingReference: protectedProcedure
+    .input(embeddingReferenceIdInput)
+    .mutation(async ({ ctx, input }) => {
+      const [reference] = await db
+        .select({ id: petEmbeddings.id })
+        .from(petEmbeddings)
+        .innerJoin(pets, eq(petEmbeddings.petId, pets.id))
+        .where(
+          and(
+            eq(petEmbeddings.id, input.id),
+            eq(pets.userId, ctx.session.user.id),
+          ),
+        )
+        .limit(1);
+
+      if (!reference) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Foto de referência não encontrada",
+        });
+      }
+
+      const [deletedReference] = await db
+        .delete(petEmbeddings)
+        .where(eq(petEmbeddings.id, reference.id))
+        .returning({ id: petEmbeddings.id, petId: petEmbeddings.petId });
+
+      return deletedReference;
+    }),
 
   findSimilarEmbedding: protectedProcedure
     .input(embeddingMatchInput)
