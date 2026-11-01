@@ -95,6 +95,47 @@ async function resolveMonitoringSessionId(userId: string, input: ReportFilters) 
 }
 
 export const reportsRouter = router({
+  clearMonitoringHistory: protectedProcedure.mutation(async ({ ctx }) => {
+    const [activeSession] = await db
+      .select({ id: monitoringSessions.id })
+      .from(monitoringSessions)
+      .where(
+        and(
+          eq(monitoringSessions.userId, ctx.session.user.id),
+          eq(monitoringSessions.status, "active"),
+        ),
+      )
+      .limit(1);
+
+    if (activeSession) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Pare o monitoramento antes de limpar o histórico",
+      });
+    }
+
+    return db.transaction(async (tx) => {
+      const deletedEvents = await tx
+        .delete(petEvents)
+        .where(eq(petEvents.userId, ctx.session.user.id))
+        .returning({ id: petEvents.id });
+      const deletedExperiments = await tx
+        .delete(experimentalSessions)
+        .where(eq(experimentalSessions.userId, ctx.session.user.id))
+        .returning({ id: experimentalSessions.id });
+      const deletedSessions = await tx
+        .delete(monitoringSessions)
+        .where(eq(monitoringSessions.userId, ctx.session.user.id))
+        .returning({ id: monitoringSessions.id });
+
+      return {
+        events: deletedEvents.length,
+        experiments: deletedExperiments.length,
+        monitoringSessions: deletedSessions.length,
+      };
+    });
+  }),
+
   filterOptions: protectedProcedure.query(async ({ ctx }) => {
     const [availableCameras, availablePets, availableSessions, availableExperiments] = await Promise.all([
       db

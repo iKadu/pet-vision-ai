@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Activity,
   BarChart3,
@@ -12,10 +12,13 @@ import {
   RefreshCw,
   ScanLine,
   SlidersHorizontal,
+  Trash2,
   TriangleAlert,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
+import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog';
 import { trpc } from '@/utils/trpc';
 import { ReportExportDialog, type ReportExportKind } from '@/components/report-export-dialog';
 import { ReportSectionNav } from '@/components/report-section-nav';
@@ -113,6 +116,7 @@ export default function ReportsPage() {
   const [identificationStatus, setIdentificationStatus] = useState<IdentificationStatus | 'all'>('all');
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isClearHistoryDialogOpen, setIsClearHistoryDialogOpen] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -133,6 +137,18 @@ export default function ReportsPage() {
     enabled: false,
     retry: false,
   });
+  const clearMonitoringHistory = useMutation(
+    trpc.reports.clearMonitoringHistory.mutationOptions({
+      onSuccess: (result) => {
+        setIsClearHistoryDialogOpen(false);
+        resetFilters();
+        void Promise.all([overviewQuery.refetch(), filterOptionsQuery.refetch()]);
+        toast.success(
+          `Histórico limpo: ${result.events} evento(s), ${result.monitoringSessions} sessão(ões) e ${result.experiments} experimento(s).`,
+        );
+      },
+    }),
+  );
   const overview = overviewQuery.data;
   const peakTimelineValue = Math.max(
     1,
@@ -225,6 +241,7 @@ export default function ReportsPage() {
             <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Acompanhe o monitoramento e consulte os resultados.</p>
           </div>
           <div className="flex items-center gap-2">
+            <button type="button" onClick={() => { clearMonitoringHistory.reset(); setIsClearHistoryDialogOpen(true); }} disabled={clearMonitoringHistory.isPending} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-destructive/30 bg-destructive/[0.06] px-4 text-xs font-semibold text-destructive transition hover:bg-destructive/12 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" />Limpar histórico</button>
             <button type="button" onClick={() => setIsExportDialogOpen(true)} disabled={!overview} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />Exportar relatório</button>
             <button type="button" onClick={() => void overviewQuery.refetch()} disabled={overviewQuery.isFetching} title="Atualizar dados" aria-label="Atualizar dados" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${overviewQuery.isFetching ? 'animate-spin' : ''}`} /></button>
           </div>
@@ -290,6 +307,16 @@ export default function ReportsPage() {
             }
           }}
           onExport={handleExport}
+        />
+        <DeleteConfirmationDialog
+          open={isClearHistoryDialogOpen}
+          title="Limpar histórico de monitoramento?"
+          description={<>Eventos, sessões de monitoramento e experimentos serão removidos permanentemente. <strong className="font-semibold text-card-foreground">Pets, fotos de referência e câmeras serão preservados.</strong></>}
+          confirmLabel="Limpar histórico"
+          pending={clearMonitoringHistory.isPending}
+          error={clearMonitoringHistory.isError ? (clearMonitoringHistory.error instanceof Error ? clearMonitoringHistory.error.message : 'Não foi possível limpar o histórico. Tente novamente.') : null}
+          onCancel={() => { clearMonitoringHistory.reset(); setIsClearHistoryDialogOpen(false); }}
+          onConfirm={() => clearMonitoringHistory.mutate()}
         />
       </div>
     </div>
