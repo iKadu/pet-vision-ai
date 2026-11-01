@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BarChart3, Check, Download, FileText, ListTree, X } from 'lucide-react';
 
-export type ReportExportKind = 'summary-csv' | 'summary-json' | 'events-csv' | 'timeline-svg' | 'timeline-png';
+export type ReportExportKind = 'summary-csv' | 'summary-json' | 'events-csv' | 'timeline-svg' | 'timeline-png' | 'roc-svg' | 'roc-png' | 'precision-recall-svg' | 'precision-recall-png' | 'evaluation-json';
 
-type ExportContent = 'summary' | 'events' | 'timeline';
+type ExportContent = 'summary' | 'events' | 'timeline' | 'evaluation';
 
 const contentOptions: Array<{
   id: ExportContent;
@@ -41,27 +41,50 @@ const contentOptions: Array<{
       { id: 'timeline-png', label: 'PNG' },
     ],
   },
+  {
+    id: 'evaluation',
+    label: 'Resultados experimentais',
+    description: 'Curvas ROC, Precisão–Revocação e dados auditáveis.',
+    icon: BarChart3,
+    formats: [
+      { id: 'roc-svg', label: 'ROC SVG' },
+      { id: 'roc-png', label: 'ROC PNG' },
+      { id: 'precision-recall-svg', label: 'P–R SVG' },
+      { id: 'precision-recall-png', label: 'P–R PNG' },
+      { id: 'evaluation-json', label: 'JSON' },
+    ],
+  },
 ];
 
 export function ReportExportDialog({
   open,
   isExporting,
   canExport,
+  includeEvaluation = false,
+  availableContentIds,
+  unavailableFormats = [],
   error,
   onClose,
   onExport,
 }: {
   open: boolean;
   isExporting: boolean;
-  canExport: { summary: boolean; events: boolean; timeline: boolean };
+  canExport: { summary: boolean; events: boolean; timeline: boolean; evaluation: boolean };
+  includeEvaluation?: boolean;
+  availableContentIds?: ExportContent[];
+  unavailableFormats?: ReportExportKind[];
   error: string | null;
   onClose: () => void;
   onExport: (kind: ReportExportKind) => void | Promise<void>;
 }) {
   const [selectedContent, setSelectedContent] = useState<ExportContent>('summary');
+  const availableContentOptions = useMemo(
+    () => contentOptions.filter((option) => (includeEvaluation || option.id !== 'evaluation') && (!availableContentIds || availableContentIds.includes(option.id))),
+    [availableContentIds, includeEvaluation],
+  );
   const selected = useMemo(
-    () => contentOptions.find((option) => option.id === selectedContent) ?? contentOptions[0],
-    [selectedContent],
+    () => availableContentOptions.find((option) => option.id === selectedContent) ?? availableContentOptions[0],
+    [availableContentOptions, selectedContent],
   );
 
   useEffect(() => {
@@ -106,10 +129,10 @@ export function ReportExportDialog({
           <fieldset>
             <legend className="text-xs font-semibold text-card-foreground">Conteúdo</legend>
             <div className="mt-3 space-y-2">
-              {contentOptions.map((option) => {
+              {availableContentOptions.map((option) => {
                 const Icon = option.icon;
                 const unavailable = !canExport[option.id];
-                const selectedOption = selectedContent === option.id;
+                const selectedOption = selected.id === option.id;
                 return (
                   <button
                     key={option.id}
@@ -130,18 +153,20 @@ export function ReportExportDialog({
           <fieldset>
             <legend className="text-xs font-semibold text-card-foreground">Formato disponível</legend>
             <div className="mt-3 flex flex-wrap gap-2">
-              {selected.formats.map((format) => (
+              {selected.formats.map((format) => {
+                const unavailable = unavailableFormats.includes(format.id);
+                return (
                 <button
                   key={format.id}
                   type="button"
                   onClick={() => void onExport(format.id)}
-                  disabled={!canExport[selected.id] || isExporting}
+                  disabled={!canExport[selected.id] || isExporting || unavailable}
                   className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Download className="h-3.5 w-3.5" />
-                  {isExporting ? 'Preparando...' : `Baixar ${format.label}`}
+                  {isExporting ? 'Preparando...' : unavailable ? `${format.label} indisponível` : `Baixar ${format.label}`}
                 </button>
-              ))}
+              );})}
             </div>
           </fieldset>
 

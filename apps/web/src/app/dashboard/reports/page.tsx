@@ -290,6 +290,7 @@ export default function ReportsPage() {
             summary: Boolean(overview),
             events: Boolean(overview),
             timeline: Boolean(overview?.timeline.length),
+            evaluation: false,
           }}
           error={exportError}
           onClose={() => {

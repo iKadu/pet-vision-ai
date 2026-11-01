@@ -221,7 +221,8 @@ export default function ReportEventsPage() {
         <ReportExportDialog
           open={isExportDialogOpen}
           isExporting={isExporting}
-          canExport={{ summary: false, events: eventsQuery.isSuccess, timeline: false }}
+          canExport={{ summary: false, events: eventsQuery.isSuccess, timeline: false, evaluation: false }}
+          availableContentIds={['events']}
           error={exportError}
           onClose={() => {
             if (!isExporting) {

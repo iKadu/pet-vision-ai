@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { BarChart3, Beaker, CheckCircle2, ClipboardList, Link2, Save } from 'lucide-react';
+import { BarChart3, Beaker, CheckCircle2, ClipboardList, Download, Link2, Save } from 'lucide-react';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useState } from 'react';
@@ -9,7 +9,9 @@ import { toast } from 'sonner';
 
 import { trpc } from '@/utils/trpc';
 import { IdentificationEvaluationPanel } from '@/components/identification-evaluation-panel';
+import { ReportExportDialog, type ReportExportKind } from '@/components/report-export-dialog';
 import { ReportSectionNav } from '@/components/report-section-nav';
+import { exportIdentificationEvaluation, type IdentificationEvaluationExportKind } from '@/lib/identification-evaluation-export';
 
 const statusLabels = {
   draft: 'Rascunho',
@@ -28,6 +30,9 @@ export default function ExperimentSessionsPage() {
   const [name, setName] = useState('');
   const [objective, setObjective] = useState('');
   const [monitoringSessionId, setMonitoringSessionId] = useState('');
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const experimentsQuery = useQuery(trpc.experiments.list.queryOptions());
   const optionsQuery = useQuery(trpc.reports.filterOptions.queryOptions());
   const identificationEvaluationQuery = useQuery({
@@ -70,10 +75,27 @@ export default function ExperimentSessionsPage() {
     }
   }
 
+  async function handleExport(kind: ReportExportKind) {
+    const evaluation = identificationEvaluationQuery.data;
+    const supportedKinds: IdentificationEvaluationExportKind[] = ['roc-svg', 'roc-png', 'precision-recall-svg', 'precision-recall-png', 'evaluation-json'];
+    if (!evaluation || isExporting || !supportedKinds.includes(kind as IdentificationEvaluationExportKind)) return;
+
+    setExportError(null);
+    setIsExporting(true);
+    try {
+      await exportIdentificationEvaluation(kind as IdentificationEvaluationExportKind, evaluation);
+      setIsExportDialogOpen(false);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Não foi possível exportar os resultados experimentais.');
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <div className="min-h-screen text-foreground">
       <div className="mx-auto max-w-[1440px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
-        <header className="flex flex-col gap-5 border-b border-border/80 pb-7 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-3xl font-semibold tracking-[-0.045em] text-foreground sm:text-4xl">Experimentos</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Organize as execuções usadas na validação experimental sem alterar o monitoramento diário.</p></div><Link href={'/dashboard/reports/compare' as Route} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary"><BarChart3 className="h-3.5 w-3.5" />Comparar experimentos</Link></header>
+        <header className="flex flex-col gap-5 border-b border-border/80 pb-7 lg:flex-row lg:items-end lg:justify-between"><div><h1 className="text-3xl font-semibold tracking-[-0.045em] text-foreground sm:text-4xl">Experimentos</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Organize as execuções usadas na validação experimental sem alterar o monitoramento diário.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => setIsExportDialogOpen(true)} disabled={!identificationEvaluationQuery.data} title={identificationEvaluationQuery.data ? undefined : 'Gere a avaliação de identificação antes de exportar'} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />Exportar resultados</button><Link href={'/dashboard/reports/compare' as Route} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary"><BarChart3 className="h-3.5 w-3.5" />Comparar experimentos</Link></div></header>
         <ReportSectionNav active="experiments" />
 
         <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_330px]">
@@ -90,8 +112,28 @@ export default function ExperimentSessionsPage() {
 
         <details className="group mt-6 rounded-[28px] border border-border/80 bg-card/80 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)]">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-5 sm:px-6 [&::-webkit-details-marker]:hidden"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Análise avançada</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Avaliação de identificação</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">ROC, Precisão–Revocação e evidências das referências cadastradas.</p></div><span className="rounded-full border border-border bg-background px-3 py-1.5 text-[10px] font-semibold text-muted-foreground transition group-open:border-primary/35 group-open:text-primary">Abrir</span></summary>
-          <div className="border-t border-border/80 px-5 pb-5 sm:px-6 sm:pb-6"><IdentificationEvaluationPanel evaluation={identificationEvaluationQuery.data} isGenerating={identificationEvaluationQuery.isFetching} error={identificationEvaluationQuery.error?.message ?? null} onGenerate={() => void identificationEvaluationQuery.refetch()} /></div>
+          <div className="border-t border-border/80 px-5 pb-5 sm:px-6 sm:pb-6"><p className="mt-5 text-xs leading-5 text-muted-foreground">Esta avaliação é interna às referências cadastradas e não substitui testes com vídeos independentes. Use “Exportar resultados” para obter as evidências disponíveis.</p><IdentificationEvaluationPanel evaluation={identificationEvaluationQuery.data} isGenerating={identificationEvaluationQuery.isFetching} error={identificationEvaluationQuery.error?.message ?? null} onGenerate={() => void identificationEvaluationQuery.refetch()} /></div>
         </details>
+
+        <ReportExportDialog
+          open={isExportDialogOpen}
+          isExporting={isExporting}
+          includeEvaluation
+          availableContentIds={['evaluation']}
+          canExport={{ summary: false, events: false, timeline: false, evaluation: Boolean(identificationEvaluationQuery.data) }}
+          unavailableFormats={[
+            ...(identificationEvaluationQuery.data?.verification.rocAuc === null ? ['roc-svg', 'roc-png'] as ReportExportKind[] : []),
+            ...(identificationEvaluationQuery.data?.verification.averagePrecision === null ? ['precision-recall-svg', 'precision-recall-png'] as ReportExportKind[] : []),
+          ]}
+          error={exportError}
+          onClose={() => {
+            if (!isExporting) {
+              setExportError(null);
+              setIsExportDialogOpen(false);
+            }
+          }}
+          onExport={handleExport}
+        />
       </div>
     </div>
   );
