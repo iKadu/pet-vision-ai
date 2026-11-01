@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { trpc } from '@/utils/trpc';
+import { IdentificationEvaluationPanel } from '@/components/identification-evaluation-panel';
 import { ReportSectionNav } from '@/components/report-section-nav';
 
 const statusLabels = {
@@ -29,6 +30,11 @@ export default function ExperimentSessionsPage() {
   const [monitoringSessionId, setMonitoringSessionId] = useState('');
   const experimentsQuery = useQuery(trpc.experiments.list.queryOptions());
   const optionsQuery = useQuery(trpc.reports.filterOptions.queryOptions());
+  const identificationEvaluationQuery = useQuery({
+    ...trpc.reports.identificationEvaluation.queryOptions(),
+    enabled: false,
+    retry: false,
+  });
   const createExperiment = useMutation(trpc.experiments.create.mutationOptions());
   const updateExperiment = useMutation(trpc.experiments.update.mutationOptions());
 
@@ -81,6 +87,11 @@ export default function ExperimentSessionsPage() {
         <section className="mt-6 rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6"><div className="flex items-center gap-3 border-b border-border/80 pb-5"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent text-accent-foreground"><Link2 className="h-5 w-5" /></span><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Registro acadêmico</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Experimentos salvos</h2></div></div>
           {experimentsQuery.isPending ? <div className="mt-5 space-y-3">{[0, 1].map((item) => <div key={item} className="h-20 animate-pulse rounded-2xl bg-surface-raised" />)}</div> : experimentsQuery.data?.length ? <div className="mt-2 divide-y divide-border/70">{experimentsQuery.data.map((experiment) => <article key={experiment.id} className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-semibold text-card-foreground">{experiment.name}</h3>{experiment.monitoringSessionId && <span className="rounded-full bg-info/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-info">Sessão vinculada</span>}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">{experiment.objective || 'Objetivo ainda não informado.'}</p><p className="mt-1 text-[11px] text-muted-foreground">{experiment.cameraName ?? (experiment.monitoringSessionId ? 'Câmera removida' : 'Sem sessão vinculada')} · criado em {formatDate(experiment.createdAt)}</p></div><label className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Status<select value={experiment.status} onChange={(event) => void changeStatus(experiment.id, event.target.value as ExperimentStatus)} disabled={updateExperiment.isPending} className="mt-1.5 block h-9 rounded-lg border border-border bg-background px-2 text-xs font-medium normal-case tracking-normal text-foreground outline-none focus:border-primary"><option value="draft">{statusLabels.draft}</option><option value="ready">{statusLabels.ready}</option><option value="completed">{statusLabels.completed}</option><option value="archived">{statusLabels.archived}</option></select></label></article>)}</div> : <div className="py-12 text-center"><CheckCircle2 className="mx-auto h-6 w-6 text-primary" /><p className="mt-3 text-sm font-semibold text-card-foreground">Nenhum experimento registrado</p><p className="mt-1 text-sm text-muted-foreground">Crie o primeiro recorte quando tiver uma sessão de monitoramento encerrada.</p></div>}
         </section>
+
+        <details className="group mt-6 rounded-[28px] border border-border/80 bg-card/80 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)]">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-5 sm:px-6 [&::-webkit-details-marker]:hidden"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Análise avançada</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Avaliação de identificação</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">ROC, Precisão–Revocação e evidências das referências cadastradas.</p></div><span className="rounded-full border border-border bg-background px-3 py-1.5 text-[10px] font-semibold text-muted-foreground transition group-open:border-primary/35 group-open:text-primary">Abrir</span></summary>
+          <div className="border-t border-border/80 px-5 pb-5 sm:px-6 sm:pb-6"><IdentificationEvaluationPanel evaluation={identificationEvaluationQuery.data} isGenerating={identificationEvaluationQuery.isFetching} error={identificationEvaluationQuery.error?.message ?? null} onGenerate={() => void identificationEvaluationQuery.refetch()} /></div>
+        </details>
       </div>
     </div>
   );
