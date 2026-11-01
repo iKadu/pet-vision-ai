@@ -163,6 +163,25 @@
     outline: 2px solid var(--ring);
     outline-offset: 3px;
   }
+  button:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="checkbox"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([data-disabled]),
+  [role="menuitemcheckbox"]:not([data-disabled]),
+  [role="menuitemradio"]:not([data-disabled]) {
+    cursor: pointer;
+  }
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  [aria-disabled="true"],
+  [data-disabled] {
+    cursor: not-allowed;
+  }
   body {
     @apply font-sans bg-background text-foreground;
     background-image: radial-gradient(circle at 82% -8%, color-mix(in oklch, var(--primary) 8%, transparent), transparent 28rem);

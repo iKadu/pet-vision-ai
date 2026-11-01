@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 import { DashboardBackLink } from '../../dashboard-back-link';
+import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog';
 import { trpc } from '@/utils/trpc';
 
 const MAX_REFERENCE_PHOTOS = 5;
@@ -31,6 +32,7 @@ export default function AnimalsListPage() {
     species: 'dog' | 'cat';
     breed: string;
   } | null>(null);
+  const [petToDelete, setPetToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const updatePet = useMutation(
     trpc.pets.update.mutationOptions({
@@ -44,6 +46,7 @@ export default function AnimalsListPage() {
     trpc.pets.delete.mutationOptions({
       onSuccess: () => {
         setEditingPet(null);
+        setPetToDelete(null);
         void petsQuery.refetch();
       },
     }),
@@ -95,9 +98,7 @@ export default function AnimalsListPage() {
   }
 
   function removePet(id: string, name: string) {
-    if (window.confirm(`Excluir o perfil de ${name}? Essa ação não pode ser desfeita.`)) {
-      deletePet.mutate({ id });
-    }
+    if (!deletePet.isPending) setPetToDelete({ id, name });
   }
 
   function addReference(event: React.ChangeEvent<HTMLInputElement>, petId: string) {
@@ -220,6 +221,18 @@ export default function AnimalsListPage() {
           </section>
         )}
       </div>
+      <DeleteConfirmationDialog
+        open={petToDelete !== null}
+        title="Excluir perfil?"
+        description={<>O perfil de <strong className="font-semibold text-card-foreground">{petToDelete?.name}</strong>, suas fotos de referência e os dados associados serão removidos permanentemente.</>}
+        confirmLabel="Excluir perfil"
+        pending={deletePet.isPending}
+        error={deletePet.isError ? (deletePet.error instanceof Error ? deletePet.error.message : 'Não foi possível excluir o perfil. Tente novamente.') : null}
+        onCancel={() => setPetToDelete(null)}
+        onConfirm={() => {
+          if (petToDelete) deletePet.mutate({ id: petToDelete.id });
+        }}
+      />
     </div>
   );
 }

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 
 import { StreamDetectionOverlay } from '@/components/stream-detection-overlay';
+import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog';
 import {
   suppressDuplicateStreamDetections,
   type StreamDetection,
@@ -80,6 +81,7 @@ export default function CamerasPage() {
     type: CameraType;
     source: string;
   } | null>(null);
+  const [cameraToDelete, setCameraToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const camerasQuery = useQuery(trpc.cameras.list.queryOptions());
   const streamStatusQuery = useQuery({
@@ -173,6 +175,7 @@ export default function CamerasPage() {
   const deleteCamera = useMutation(
     trpc.cameras.delete.mutationOptions({
       onSuccess: () => {
+        setCameraToDelete(null);
         void camerasQuery.refetch();
         setMessage('Câmera excluída com sucesso.');
       },
@@ -300,9 +303,8 @@ export default function CamerasPage() {
     });
   }
 
-  function removeCamera(id: string) {
-    if (deleteCamera.isPending || !window.confirm('Excluir esta câmera?')) return;
-    deleteCamera.mutate({ id });
+  function removeCamera(id: string, name: string) {
+    if (!deleteCamera.isPending) setCameraToDelete({ id, name });
   }
 
   return (
@@ -543,13 +545,13 @@ export default function CamerasPage() {
                     </div>
 
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3">
-                      <button type="button" disabled={camera.isDefault || deleteCamera.isPending || setDefaultCamera.isPending} onClick={() => void setCameraAsDefault(camera)} className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-semibold transition disabled:cursor-default ${camera.isDefault ? 'bg-success/10 text-success' : 'bg-surface-raised text-foreground hover:bg-accent disabled:opacity-50'}`}>
+                      <button type="button" disabled={camera.isDefault || deleteCamera.isPending || setDefaultCamera.isPending} onClick={() => void setCameraAsDefault(camera)} className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-semibold transition disabled:cursor-not-allowed ${camera.isDefault ? 'bg-success/10 text-success' : 'bg-surface-raised text-foreground hover:bg-accent disabled:opacity-50'}`}>
                         {camera.isDefault ? <Check className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
                         {camera.isDefault ? 'Padrão ativo' : 'Definir padrão'}
                       </button>
                       <div className="flex items-center gap-1">
                         <button type="button" aria-label={`Editar ${camera.name}`} onClick={() => setEditingCamera({ id: camera.id, name: camera.name, type, source: camera.source })} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-surface-raised hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
-                        <button type="button" aria-label={`Excluir ${camera.name}`} onClick={() => removeCamera(camera.id)} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+                        <button type="button" aria-label={`Excluir ${camera.name}`} onClick={() => removeCamera(camera.id, camera.name)} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
                       </div>
                     </div>
                   </article>
@@ -559,6 +561,18 @@ export default function CamerasPage() {
           </section>
         )}
       </div>
+      <DeleteConfirmationDialog
+        open={cameraToDelete !== null}
+        title="Excluir câmera?"
+        description={<>A câmera <strong className="font-semibold text-card-foreground">{cameraToDelete?.name}</strong> será removida da sua biblioteca. Essa ação não pode ser desfeita.</>}
+        confirmLabel="Excluir câmera"
+        pending={deleteCamera.isPending}
+        error={deleteCamera.isError ? (deleteCamera.error instanceof Error ? deleteCamera.error.message : 'Não foi possível excluir a câmera. Tente novamente.') : null}
+        onCancel={() => setCameraToDelete(null)}
+        onConfirm={() => {
+          if (cameraToDelete) deleteCamera.mutate({ id: cameraToDelete.id });
+        }}
+      />
     </div>
   );
 }
