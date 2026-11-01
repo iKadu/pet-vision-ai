@@ -3,7 +3,6 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   Activity,
-  ArrowRight,
   BarChart3,
   Camera,
   CheckCircle2,
@@ -16,8 +15,6 @@ import {
   SlidersHorizontal,
   TriangleAlert,
 } from 'lucide-react';
-import Link from 'next/link';
-import type { Route } from 'next';
 import { useMemo, useState } from 'react';
 
 import { trpc } from '@/utils/trpc';
@@ -273,12 +270,7 @@ export default function ReportsPage() {
             </section>
           </div>}
 
-          <section className="mt-6 rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6"><div className="flex items-center justify-between gap-3 border-b border-border/80 pb-5"><div><h2 className="text-lg font-semibold tracking-[-0.03em] text-card-foreground">Sessões recentes</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Execuções concluídas, interrompidas ou com falha dentro do período.</p></div><Clock3 className="h-5 w-5 text-primary" /></div>{overview.sessions.length ? <div className="mt-2 divide-y divide-border/70">{overview.sessions.slice(0, 4).map((session) => <div key={session.id} className="flex items-center justify-between gap-4 py-4"><div className="min-w-0"><p className="truncate text-sm font-semibold text-card-foreground">{session.cameraName ?? 'Câmera removida'}</p><p className="mt-1 truncate text-xs text-muted-foreground">{formatDateTime(session.startedAt)} · {formatDuration(session.durationSeconds)}</p></div><span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${session.status === 'completed' ? 'bg-success/10 text-success' : session.status === 'failed' ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}`}>{session.status}</span></div>)}</div> : <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma sessão encontrada no período.</p>}</section>
-
-          <section className="mt-6 flex flex-col gap-4 rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
-            <div><h2 className="text-lg font-semibold tracking-[-0.03em] text-card-foreground">Histórico de eventos</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">Consulte detecções, identificações, alertas e métricas com busca, filtros e detalhes sob demanda.</p></div>
-            <Link href={'/dashboard/reports/events' as Route} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary">Consultar histórico<ArrowRight className="h-3.5 w-3.5" /></Link>
-          </section>
+          <section className="mt-6 rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6"><div className="flex items-center justify-between gap-3 border-b border-border/80 pb-5"><div><h2 className="text-lg font-semibold tracking-[-0.03em] text-card-foreground">Sessões recentes</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">As cinco últimas execuções concluídas, interrompidas ou com falha no período.</p></div><Clock3 className="h-5 w-5 text-primary" /></div>{overview.sessions.length ? <div className="mt-2 divide-y divide-border/70">{overview.sessions.slice(0, 5).map((session) => <div key={session.id} className="flex items-center justify-between gap-4 py-4"><div className="min-w-0"><p className="truncate text-sm font-semibold text-card-foreground">{session.cameraName ?? 'Câmera removida'}</p><p className="mt-1 truncate text-xs text-muted-foreground">{formatDateTime(session.startedAt)} · {formatDuration(session.durationSeconds)}</p></div><span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${session.status === 'completed' ? 'bg-success/10 text-success' : session.status === 'failed' ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}`}>{session.status}</span></div>)}</div> : <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma sessão encontrada no período.</p>}</section>
 
           <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><Camera className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />Os relatórios exibem somente eventos persistidos após o início da coleta por sessões. Dados anteriores podem não ter câmera ou sessão associada.</p>
         </>}
