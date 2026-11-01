@@ -12,14 +12,14 @@ import {
   Gauge,
   RefreshCw,
   ScanLine,
+  SlidersHorizontal,
   TriangleAlert,
 } from 'lucide-react';
-import Link from 'next/link';
-import type { Route } from 'next';
 import { useMemo, useState } from 'react';
 
 import { trpc } from '@/utils/trpc';
 import { IdentificationEvaluationPanel } from '@/components/identification-evaluation-panel';
+import { ReportExportDialog, type ReportExportKind } from '@/components/report-export-dialog';
 import { buildEventRecordsCsv } from '@tccpet/api/reporting/event-record-export';
 import { buildReportExport, type ReportExportFormat } from '@tccpet/api/reporting/report-export';
 import { buildTimelineChartExport, type TimelineChartFormat } from '@tccpet/api/reporting/timeline-chart-export';
@@ -112,10 +112,10 @@ export default function ReportsPage() {
   const [experimentalSessionId, setExperimentalSessionId] = useState('');
   const [eventType, setEventType] = useState<EventType | 'all'>('all');
   const [identificationStatus, setIdentificationStatus] = useState<IdentificationStatus | 'all'>('all');
-  const [chartExportError, setChartExportError] = useState('');
-  const [isExportingChart, setIsExportingChart] = useState(false);
-  const [eventExportError, setEventExportError] = useState('');
-  const [isExportingEvents, setIsExportingEvents] = useState(false);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const filterOptionsQuery = useQuery(trpc.reports.filterOptions.queryOptions());
   const filters = useMemo(() => ({
@@ -175,90 +175,85 @@ export default function ReportsPage() {
   }
 
   async function downloadTimelineChart(format: TimelineChartFormat) {
-    if (!overview?.timeline.length || isExportingChart) return;
-    setChartExportError('');
-    setIsExportingChart(true);
-    try {
-      const exported = await buildTimelineChartExport(format, overview.timeline);
-      const blob = typeof exported.content === 'string'
-        ? new Blob([exported.content], { type: exported.mimeType })
-        : exported.content;
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = exported.fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
-    } catch (error) {
-      setChartExportError(error instanceof Error ? error.message : 'Não foi possível exportar o gráfico.');
-    } finally {
-      setIsExportingChart(false);
-    }
+    if (!overview?.timeline.length) return;
+    const exported = await buildTimelineChartExport(format, overview.timeline);
+    const blob = typeof exported.content === 'string'
+      ? new Blob([exported.content], { type: exported.mimeType })
+      : exported.content;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = exported.fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   async function downloadEventRecords() {
-    if (!overview || isExportingEvents) return;
-    setEventExportError('');
-    setIsExportingEvents(true);
+    if (!overview) return;
+    const result = await eventExportQuery.refetch();
+    if (!result.data) {
+      throw result.error ?? new Error('Não foi possível carregar os eventos para exportação.');
+    }
+    const exported = buildEventRecordsCsv(result.data);
+    const blob = new Blob([exported.content], { type: exported.mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = exported.fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  async function handleExport(kind: ReportExportKind) {
+    if (!overview || isExporting) return;
+    setExportError(null);
+    setIsExporting(true);
     try {
-      const result = await eventExportQuery.refetch();
-      if (!result.data) {
-        throw result.error ?? new Error('Não foi possível carregar os eventos para exportação.');
-      }
-      const exported = buildEventRecordsCsv(result.data);
-      const blob = new Blob([exported.content], { type: exported.mimeType });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = exported.fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      if (kind === 'summary-csv') downloadReport('csv');
+      if (kind === 'summary-json') downloadReport('json');
+      if (kind === 'events-csv') await downloadEventRecords();
+      if (kind === 'timeline-svg') await downloadTimelineChart('svg');
+      if (kind === 'timeline-png') await downloadTimelineChart('png');
+      setIsExportDialogOpen(false);
     } catch (error) {
-      setEventExportError(error instanceof Error ? error.message : 'Não foi possível exportar os eventos.');
+      setExportError(error instanceof Error ? error.message : 'Não foi possível exportar o relatório.');
     } finally {
-      setIsExportingEvents(false);
+      setIsExporting(false);
     }
   }
 
   return (
     <div className="min-h-screen text-foreground">
       <div className="mx-auto max-w-[1440px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
-        <header className="flex flex-col gap-5 border-b border-border/80 pb-7 lg:flex-row lg:items-end lg:justify-between">
+        <header className="flex flex-col gap-5 border-b border-border/80 pb-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">Observabilidade do monitoramento</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-foreground sm:text-4xl">Relatórios</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Analise as sessões, detecções, identificações e alertas registrados pelo seu monitoramento.</p>
+            <h1 className="text-3xl font-semibold tracking-[-0.045em] text-foreground sm:text-4xl">Relatórios</h1>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Acompanhe o monitoramento e consulte os resultados.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href={'/dashboard/reports/experiments' as Route} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary"><Activity className="h-3.5 w-3.5" />Experimentos</Link>
-            <Link href={'/dashboard/reports/compare' as Route} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary"><BarChart3 className="h-3.5 w-3.5" />Comparar</Link>
-            <button type="button" onClick={() => downloadReport('csv')} disabled={!overview} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />CSV</button>
-            <button type="button" onClick={() => downloadReport('json')} disabled={!overview} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />JSON</button>
-            <button type="button" onClick={() => void downloadEventRecords()} disabled={!overview || isExportingEvents} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />{isExportingEvents ? 'Preparando...' : 'Eventos CSV'}</button>
-            <button type="button" onClick={() => void downloadTimelineChart('svg')} disabled={!overview?.timeline.length || isExportingChart} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />Gráfico SVG</button>
-            <button type="button" onClick={() => void downloadTimelineChart('png')} disabled={!overview?.timeline.length || isExportingChart} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />{isExportingChart ? 'Gerando...' : 'Gráfico PNG'}</button>
-            <button type="button" onClick={() => void Promise.all([overviewQuery.refetch(), eventRecordsQuery.refetch()])} disabled={overviewQuery.isFetching || eventRecordsQuery.isFetching} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${(overviewQuery.isFetching || eventRecordsQuery.isFetching) ? 'animate-spin' : ''}`} />Atualizar dados</button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setIsExportDialogOpen(true)} disabled={!overview} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />Exportar relatório</button>
+            <button type="button" onClick={() => void Promise.all([overviewQuery.refetch(), eventRecordsQuery.refetch()])} disabled={overviewQuery.isFetching || eventRecordsQuery.isFetching} title="Atualizar dados" aria-label="Atualizar dados" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${(overviewQuery.isFetching || eventRecordsQuery.isFetching) ? 'animate-spin' : ''}`} /></button>
           </div>
         </header>
-        {chartExportError && <p className="mt-3 text-xs font-medium text-destructive" role="alert">{chartExportError}</p>}
-        {eventExportError && <p className="mt-3 text-xs font-medium text-destructive" role="alert">{eventExportError}</p>}
 
         <section aria-label="Filtros do relatório" className="mt-6 rounded-[26px] border border-border/80 bg-card/80 p-4 shadow-[0_10px_28px_oklch(0_0_0_/_0.035)] backdrop-blur-sm sm:p-5">
-          <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-card-foreground">Recorte da análise</h2></div><button type="button" onClick={resetFilters} className="text-xs font-semibold text-primary hover:text-primary-hover">Limpar filtros</button></div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-card-foreground">Filtros</h2></div><div className="flex items-center gap-3"><button type="button" onClick={() => setShowMoreFilters((current) => !current)} aria-expanded={showMoreFilters} className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground transition hover:text-primary"><SlidersHorizontal className="h-3.5 w-3.5" />Mais filtros</button><button type="button" onClick={resetFilters} className="text-xs font-semibold text-primary hover:text-primary-hover">Limpar</button></div></div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <label className="text-xs font-semibold text-foreground">Início<input type="date" value={from} max={to} onChange={(event) => setFrom(event.target.value)} className="mt-2 h-10 w-full rounded-xl border border-border bg-background px-3 text-xs font-normal text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></label>
             <label className="text-xs font-semibold text-foreground">Fim<input type="date" value={to} min={from} onChange={(event) => setTo(event.target.value)} className="mt-2 h-10 w-full rounded-xl border border-border bg-background px-3 text-xs font-normal text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></label>
             <label className="text-xs font-semibold text-foreground">Câmera<select value={cameraId} onChange={(event) => setCameraId(event.target.value)} className="mt-2 h-10 w-full rounded-xl border border-border bg-background px-3 text-xs font-normal text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"><option value="">Todas as câmeras</option>{filterOptionsQuery.data?.cameras.map((camera) => <option key={camera.id} value={camera.id}>{camera.name}</option>)}</select></label>
+          </div>
+          {showMoreFilters && <div className="mt-3 grid gap-3 border-t border-border/70 pt-3 sm:grid-cols-2 xl:grid-cols-3">
             <label className="text-xs font-semibold text-foreground">Animal<select value={petId} onChange={(event) => setPetId(event.target.value)} className="mt-2 h-10 w-full rounded-xl border border-border bg-background px-3 text-xs font-normal text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"><option value="">Todos os animais</option>{filterOptionsQuery.data?.pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></label>
             <label className="text-xs font-semibold text-foreground">Tipo de evento<select value={eventType} onChange={(event) => setEventType(event.target.value as EventType | 'all')} className="mt-2 h-10 w-full rounded-xl border border-border bg-background px-3 text-xs font-normal text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"><option value="all">Todos os eventos</option>{EVENT_TYPES.map((type) => <option key={type} value={type}>{eventTypeLabels[type]}</option>)}</select></label>
             <label className="text-xs font-semibold text-foreground">Estado da identificação<select value={identificationStatus} onChange={(event) => setIdentificationStatus(event.target.value as IdentificationStatus | 'all')} className="mt-2 h-10 w-full rounded-xl border border-border bg-background px-3 text-xs font-normal text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"><option value="all">Todos os estados</option>{IDENTIFICATION_STATUSES.map((status) => <option key={status} value={status}>{identificationLabels[status]}</option>)}</select></label>
             <label className="text-xs font-semibold text-foreground">Sessão de monitoramento<select value={monitoringSessionId} onChange={(event) => { setMonitoringSessionId(event.target.value); if (event.target.value) setExperimentalSessionId(''); }} className="mt-2 h-10 w-full rounded-xl border border-border bg-background px-3 text-xs font-normal text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"><option value="">Todas as sessões</option>{filterOptionsQuery.data?.monitoringSessions.map((session) => <option key={session.id} value={session.id}>{session.cameraName ?? 'Câmera removida'} · {formatDateTime(session.startedAt)}</option>)}</select></label>
             <label className="text-xs font-semibold text-foreground">Sessão experimental<select value={experimentalSessionId} onChange={(event) => { setExperimentalSessionId(event.target.value); if (event.target.value) setMonitoringSessionId(''); }} className="mt-2 h-10 w-full rounded-xl border border-border bg-background px-3 text-xs font-normal text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"><option value="">Todas as sessões</option>{filterOptionsQuery.data?.experimentalSessions.map((session) => <option key={session.id} value={session.id}>{session.name} · {session.status}</option>)}</select></label>
-          </div>
+          </div>}
         </section>
 
         {overviewQuery.isPending && <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((item) => <div key={item} className="h-36 animate-pulse rounded-2xl border border-border bg-card" />)}</div>}
@@ -298,12 +293,30 @@ export default function ReportsPage() {
           </div>
 
           <section className="mt-6 rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6">
-            <div className="flex flex-col gap-3 border-b border-border/80 pb-5 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Rastreabilidade</p><h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Eventos registrados</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Os 15 registros mais recentes ficam visíveis por vez. Role para consultar até 50 eventos do recorte atual; a exportação inclui até 5.000, sem fonte de vídeo, imagens ou embeddings.</p></div><button type="button" onClick={() => void downloadEventRecords()} disabled={!overview || isExportingEvents} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />Exportar CSV</button></div>
+            <div className="flex flex-col gap-3 border-b border-border/80 pb-5 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Rastreabilidade</p><h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Eventos registrados</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Os 15 registros mais recentes ficam visíveis por vez. Role para consultar até 50 eventos do recorte atual; a exportação inclui até 5.000, sem fonte de vídeo, imagens ou embeddings.</p></div><button type="button" onClick={() => setIsExportDialogOpen(true)} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary"><Download className="h-3.5 w-3.5" />Exportar</button></div>
             {eventRecordsQuery.isPending ? <div className="mt-5 h-32 animate-pulse rounded-2xl bg-surface-raised/70" /> : eventRecordsQuery.isError ? <div className="mt-5 rounded-2xl border border-destructive/20 bg-destructive/[0.05] px-4 py-4 text-sm text-destructive">Não foi possível carregar os eventos detalhados. <button type="button" onClick={() => void eventRecordsQuery.refetch()} className="font-semibold underline">Tentar novamente</button></div> : eventRecordsQuery.data?.length ? <div className="mt-5 max-h-[640px] overflow-auto pr-1"><table className="min-w-[840px] w-full text-left text-xs"><thead className="sticky top-0 z-10 border-b border-border/80 bg-card text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground"><tr><th className="pb-3 pr-4">Momento</th><th className="pb-3 pr-4">Evento</th><th className="pb-3 pr-4">Animal</th><th className="hidden pb-3 pr-4 lg:table-cell">Câmera</th><th className="pb-3 pr-4">Trilha</th><th className="pb-3 pr-4">Leitura</th><th className="pb-3">Dados</th></tr></thead><tbody className="divide-y divide-border/70">{eventRecordsQuery.data.map((event) => <tr key={event.id} className="text-muted-foreground"><td className="whitespace-nowrap py-3 pr-4 font-medium text-card-foreground">{formatDateTime(event.createdAt)}</td><td className="py-3 pr-4"><span className="rounded-full bg-surface-raised px-2 py-1 text-[10px] font-semibold text-foreground">{eventTypeLabels[event.eventType as EventType] ?? event.eventType}</span></td><td className="py-3 pr-4">{event.petName ?? '—'}</td><td className="hidden py-3 pr-4 lg:table-cell">{event.cameraName ?? '—'}</td><td className="py-3 pr-4 font-mono">{event.trackId ?? '—'}</td><td className="py-3 pr-4">{event.identificationStatus ? identificationLabels[event.identificationStatus as IdentificationStatus] ?? event.identificationStatus : '—'}</td><td className="py-3"><div className="flex flex-wrap gap-x-2 gap-y-1">{event.confidence !== null && <span>{formatMetric(event.confidence * 100, '%', 0)}</span>}{event.fps !== null && <span>{formatMetric(event.fps, ' FPS')}</span>}{event.cycleLatencyMs !== null && <span>{formatMetric(event.cycleLatencyMs, ' ms', 0)}</span>}{event.absenceDurationSeconds !== null && <span>{formatMetric(event.absenceDurationSeconds, ' s', 0)} ausente</span>}{event.activityState && <span>{event.activityState}</span>}</div></td></tr>)}</tbody></table></div> : <p className="py-8 text-center text-sm text-muted-foreground">Nenhum evento detalhado foi encontrado com os filtros atuais.</p>}
           </section>
 
           <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><Camera className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />Os relatórios exibem somente eventos persistidos após o início da coleta por sessões. Dados anteriores podem não ter câmera ou sessão associada.</p>
         </>}
+
+        <ReportExportDialog
+          open={isExportDialogOpen}
+          isExporting={isExporting}
+          canExport={{
+            summary: Boolean(overview),
+            events: Boolean(overview),
+            timeline: Boolean(overview?.timeline.length),
+          }}
+          error={exportError}
+          onClose={() => {
+            if (!isExporting) {
+              setExportError(null);
+              setIsExportDialogOpen(false);
+            }
+          }}
+          onExport={handleExport}
+        />
       </div>
     </div>
   );
