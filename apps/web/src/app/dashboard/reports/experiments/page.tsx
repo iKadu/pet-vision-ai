@@ -1,13 +1,14 @@
 'use client';
 
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Beaker, CheckCircle2, ClipboardList, Link2, Save } from 'lucide-react';
+import { BarChart3, Beaker, CheckCircle2, ClipboardList, Link2, Save } from 'lucide-react';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { trpc } from '@/utils/trpc';
+import { ReportSectionNav } from '@/components/report-section-nav';
 
 const statusLabels = {
   draft: 'Rascunho',
@@ -65,9 +66,9 @@ export default function ExperimentSessionsPage() {
 
   return (
     <div className="min-h-screen text-foreground">
-      <div className="mx-auto max-w-[1120px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
-        <Link href={'/dashboard/reports' as Route} className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground transition hover:text-primary"><ArrowLeft className="h-3.5 w-3.5" />Voltar para relatórios</Link>
-        <header className="mt-5 border-b border-border/80 pb-7"><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">Validação acadêmica</p><h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-foreground sm:text-4xl">Sessões experimentais</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Organize separadamente os recortes usados nos experimentos. Uma sessão experimental não inicia câmeras nem altera o monitoramento diário.</p></header>
+      <div className="mx-auto max-w-[1440px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
+        <header className="flex flex-col gap-5 border-b border-border/80 pb-7 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-3xl font-semibold tracking-[-0.045em] text-foreground sm:text-4xl">Experimentos</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Organize as execuções usadas na validação experimental sem alterar o monitoramento diário.</p></div><Link href={'/dashboard/reports/compare' as Route} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary"><BarChart3 className="h-3.5 w-3.5" />Comparar experimentos</Link></header>
+        <ReportSectionNav active="experiments" />
 
         <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_330px]">
           <section className="rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6"><div className="flex items-start gap-3 border-b border-border/80 pb-5"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent text-accent-foreground"><Beaker className="h-5 w-5" /></span><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Novo recorte</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Registrar experimento</h2></div></div>

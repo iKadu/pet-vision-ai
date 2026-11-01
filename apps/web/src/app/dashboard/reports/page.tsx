@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   Activity,
+  ArrowRight,
   BarChart3,
   Camera,
   CheckCircle2,
@@ -15,11 +16,14 @@ import {
   SlidersHorizontal,
   TriangleAlert,
 } from 'lucide-react';
+import Link from 'next/link';
+import type { Route } from 'next';
 import { useMemo, useState } from 'react';
 
 import { trpc } from '@/utils/trpc';
 import { IdentificationEvaluationPanel } from '@/components/identification-evaluation-panel';
 import { ReportExportDialog, type ReportExportKind } from '@/components/report-export-dialog';
+import { ReportSectionNav } from '@/components/report-section-nav';
 import { buildEventRecordsCsv } from '@tccpet/api/reporting/event-record-export';
 import { buildReportExport, type ReportExportFormat } from '@tccpet/api/reporting/report-export';
 import { buildTimelineChartExport, type TimelineChartFormat } from '@tccpet/api/reporting/timeline-chart-export';
@@ -129,10 +133,6 @@ export default function ReportsPage() {
     identificationStatus: identificationStatus === 'all' ? undefined : identificationStatus,
   }), [cameraId, eventType, experimentalSessionId, from, identificationStatus, monitoringSessionId, petId, to]);
   const overviewQuery = useQuery(trpc.reports.overview.queryOptions(filters));
-  const eventRecordsQuery = useQuery({
-    ...trpc.reports.events.queryOptions({ ...filters, limit: 50 }),
-    enabled: Boolean(overviewQuery.data),
-  });
   const eventExportQuery = useQuery({
     ...trpc.reports.events.queryOptions({ ...filters, limit: 5_000 }),
     enabled: false,
@@ -236,9 +236,10 @@ export default function ReportsPage() {
           </div>
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setIsExportDialogOpen(true)} disabled={!overview} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"><Download className="h-3.5 w-3.5" />Exportar relatório</button>
-            <button type="button" onClick={() => void Promise.all([overviewQuery.refetch(), eventRecordsQuery.refetch()])} disabled={overviewQuery.isFetching || eventRecordsQuery.isFetching} title="Atualizar dados" aria-label="Atualizar dados" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${(overviewQuery.isFetching || eventRecordsQuery.isFetching) ? 'animate-spin' : ''}`} /></button>
+            <button type="button" onClick={() => void overviewQuery.refetch()} disabled={overviewQuery.isFetching} title="Atualizar dados" aria-label="Atualizar dados" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-foreground transition hover:border-primary/35 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${overviewQuery.isFetching ? 'animate-spin' : ''}`} /></button>
           </div>
         </header>
+        <ReportSectionNav active="overview" />
 
         <section aria-label="Filtros do relatório" className="mt-6 rounded-[26px] border border-border/80 bg-card/80 p-4 shadow-[0_10px_28px_oklch(0_0_0_/_0.035)] backdrop-blur-sm sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-card-foreground">Filtros</h2></div><div className="flex items-center gap-3"><button type="button" onClick={() => setShowMoreFilters((current) => !current)} aria-expanded={showMoreFilters} className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground transition hover:text-primary"><SlidersHorizontal className="h-3.5 w-3.5" />Mais filtros</button><button type="button" onClick={resetFilters} className="text-xs font-semibold text-primary hover:text-primary-hover">Limpar</button></div></div>
@@ -292,9 +293,9 @@ export default function ReportsPage() {
             <section className="rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6"><div className="flex items-center justify-between gap-3 border-b border-border/80 pb-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Execuções</p><h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Sessões monitoradas</h2></div><Clock3 className="h-5 w-5 text-primary" /></div>{overview.sessions.length ? <div className="mt-2 divide-y divide-border/70">{overview.sessions.slice(0, 5).map((session) => <div key={session.id} className="flex items-center justify-between gap-4 py-4"><div className="min-w-0"><p className="truncate text-sm font-semibold text-card-foreground">{session.cameraName ?? 'Câmera removida'}</p><p className="mt-1 truncate text-xs text-muted-foreground">{formatDateTime(session.startedAt)} · {formatDuration(session.durationSeconds)}</p></div><span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${session.status === 'completed' ? 'bg-success/10 text-success' : session.status === 'failed' ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}`}>{session.status}</span></div>)}</div> : <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma sessão encontrada no período.</p>}</section>
           </div>
 
-          <section className="mt-6 rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:p-6">
-            <div className="flex flex-col gap-3 border-b border-border/80 pb-5 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Rastreabilidade</p><h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] text-card-foreground">Eventos registrados</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Os 15 registros mais recentes ficam visíveis por vez. Role para consultar até 50 eventos do recorte atual; a exportação inclui até 5.000, sem fonte de vídeo, imagens ou embeddings.</p></div><button type="button" onClick={() => setIsExportDialogOpen(true)} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary"><Download className="h-3.5 w-3.5" />Exportar</button></div>
-            {eventRecordsQuery.isPending ? <div className="mt-5 h-32 animate-pulse rounded-2xl bg-surface-raised/70" /> : eventRecordsQuery.isError ? <div className="mt-5 rounded-2xl border border-destructive/20 bg-destructive/[0.05] px-4 py-4 text-sm text-destructive">Não foi possível carregar os eventos detalhados. <button type="button" onClick={() => void eventRecordsQuery.refetch()} className="font-semibold underline">Tentar novamente</button></div> : eventRecordsQuery.data?.length ? <div className="mt-5 max-h-[640px] overflow-auto pr-1"><table className="min-w-[840px] w-full text-left text-xs"><thead className="sticky top-0 z-10 border-b border-border/80 bg-card text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground"><tr><th className="pb-3 pr-4">Momento</th><th className="pb-3 pr-4">Evento</th><th className="pb-3 pr-4">Animal</th><th className="hidden pb-3 pr-4 lg:table-cell">Câmera</th><th className="pb-3 pr-4">Trilha</th><th className="pb-3 pr-4">Leitura</th><th className="pb-3">Dados</th></tr></thead><tbody className="divide-y divide-border/70">{eventRecordsQuery.data.map((event) => <tr key={event.id} className="text-muted-foreground"><td className="whitespace-nowrap py-3 pr-4 font-medium text-card-foreground">{formatDateTime(event.createdAt)}</td><td className="py-3 pr-4"><span className="rounded-full bg-surface-raised px-2 py-1 text-[10px] font-semibold text-foreground">{eventTypeLabels[event.eventType as EventType] ?? event.eventType}</span></td><td className="py-3 pr-4">{event.petName ?? '—'}</td><td className="hidden py-3 pr-4 lg:table-cell">{event.cameraName ?? '—'}</td><td className="py-3 pr-4 font-mono">{event.trackId ?? '—'}</td><td className="py-3 pr-4">{event.identificationStatus ? identificationLabels[event.identificationStatus as IdentificationStatus] ?? event.identificationStatus : '—'}</td><td className="py-3"><div className="flex flex-wrap gap-x-2 gap-y-1">{event.confidence !== null && <span>{formatMetric(event.confidence * 100, '%', 0)}</span>}{event.fps !== null && <span>{formatMetric(event.fps, ' FPS')}</span>}{event.cycleLatencyMs !== null && <span>{formatMetric(event.cycleLatencyMs, ' ms', 0)}</span>}{event.absenceDurationSeconds !== null && <span>{formatMetric(event.absenceDurationSeconds, ' s', 0)} ausente</span>}{event.activityState && <span>{event.activityState}</span>}</div></td></tr>)}</tbody></table></div> : <p className="py-8 text-center text-sm text-muted-foreground">Nenhum evento detalhado foi encontrado com os filtros atuais.</p>}
+          <section className="mt-6 flex flex-col gap-4 rounded-[28px] border border-border/80 bg-card/80 p-5 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div><h2 className="text-lg font-semibold tracking-[-0.03em] text-card-foreground">Histórico de eventos</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">Consulte detecções, identificações, alertas e métricas com busca, filtros e detalhes sob demanda.</p></div>
+            <Link href={'/dashboard/reports/events' as Route} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-xs font-semibold text-foreground transition hover:border-primary/35 hover:text-primary">Consultar histórico<ArrowRight className="h-3.5 w-3.5" /></Link>
           </section>
 
           <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><Camera className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />Os relatórios exibem somente eventos persistidos após o início da coleta por sessões. Dados anteriores podem não ter câmera ou sessão associada.</p>
