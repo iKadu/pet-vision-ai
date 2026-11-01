@@ -8,6 +8,7 @@ import {
   Check,
   Dog,
   ImagePlus,
+  LoaderCircle,
   Pencil,
   Plus,
   Sparkles,
@@ -118,7 +119,7 @@ export default function AnimalsListPage() {
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-foreground sm:text-4xl">Animais cadastrados</h1>
             <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Organize perfis, amplie referências visuais e mantenha o reconhecimento preparado para o monitoramento.</p>
           </div>
-          {(!petsQuery.isSuccess || petsQuery.data.length > 0) && (
+          {petsQuery.isSuccess && petsQuery.data.length > 0 && (
             <Link href="/dashboard/animals/new" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-[0_8px_18px_color-mix(in_oklch,var(--primary)_18%,transparent)] transition hover:bg-primary-hover md:w-fit">
               <Plus className="h-4 w-4" />
               Novo animal
@@ -128,8 +129,12 @@ export default function AnimalsListPage() {
         </header>
 
         {petsQuery.isPending && (
-          <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {[0, 1, 2].map((index) => <div key={index} className="h-[460px] animate-pulse rounded-[28px] border border-border/70 bg-card/60" />)}
+          <section aria-busy="true" aria-label="Carregando animais" className="mt-7 flex min-h-[300px] items-center justify-center">
+            <div className="flex flex-col items-center text-center">
+              <LoaderCircle className="h-5 w-5 animate-spin text-primary" aria-hidden="true" />
+              <p className="mt-3 text-sm font-semibold text-card-foreground">Carregando perfis</p>
+              <p className="mt-1 text-xs text-muted-foreground">Preparando sua biblioteca de animais.</p>
+            </div>
           </section>
         )}
 
