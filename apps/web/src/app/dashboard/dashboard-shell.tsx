@@ -43,6 +43,13 @@ export default function DashboardShell({ children }: Props) {
 
   const links: NavigationItem[] = [
     {
+      href: '/dashboard/videos' as Route,
+      label: 'Vídeos',
+      description: 'Análise de gravações',
+      icon: Camera,
+      active: pathname.startsWith('/dashboard/videos'),
+    },
+    {
       href: '/dashboard',
       label: 'Visão geral',
       description: 'Status do monitoramento',

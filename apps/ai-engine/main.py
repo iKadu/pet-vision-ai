@@ -15,6 +15,7 @@ from core.detection_settings import (
     parse_detection_image_size,
 )
 from core.embedding_routes import create_embedding_router
+from core.video_analysis import create_video_router
 from core.embedding_service import ImageEmbeddingService
 from core.identification import TrackIdentificationManager
 from core.presence import PresenceMonitor
@@ -34,6 +35,7 @@ from urllib.parse import urlsplit, urlunsplit
 load_dotenv(override=True)
 
 app = FastAPI(title="Pet Vision AI Engine", version="1.0.0")
+app.include_router(create_video_router())
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3001", "http://localhost:3000"],
