@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowUpRight, Plus, UsersRound } from "lucide-react";
+import type { Route } from "next";
+import { ArrowUpRight, Plus, ScanSearch, UsersRound } from "lucide-react";
 
 export default function AnimalsPage() {
   return (
@@ -11,7 +12,7 @@ export default function AnimalsPage() {
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Crie perfis e reúna referências visuais para tornar o reconhecimento de cada pet mais confiável.</p>
         </header>
 
-        <section className="mt-7 grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+        <section className="mt-7 grid gap-5 lg:grid-cols-2">
           <Link href="/dashboard/animals/new" className="group relative overflow-hidden rounded-[28px] border border-primary/25 bg-primary p-6 text-primary-foreground shadow-[0_18px_40px_color-mix(in_oklch,var(--primary)_20%,transparent)] transition duration-300 hover:-translate-y-0.5 hover:bg-primary-hover sm:p-8">
             <span className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
             <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/10"><Plus className="h-5 w-5" /></span>
@@ -32,6 +33,18 @@ export default function AnimalsPage() {
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Biblioteca</p>
                 <h2 className="mt-2 text-xl font-semibold tracking-[-0.035em] text-card-foreground">Animais cadastrados</h2>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">Consulte os perfis, adicione novos ângulos e mantenha as referências organizadas.</p>
+              </div>
+              <ArrowUpRight className="mb-1 h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-1 group-hover:-translate-y-1 group-hover:text-primary" />
+            </div>
+          </Link>
+
+          <Link href={'/dashboard/tests' as Route} className="group rounded-[28px] border border-border/80 bg-card/80 p-6 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm transition duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_40px_oklch(0_0_0_/_0.07)] sm:p-8">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-accent-foreground"><ScanSearch className="h-5 w-5" /></span>
+            <div className="mt-12 flex items-end justify-between gap-5 sm:mt-16">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Validação visual</p>
+                <h2 className="mt-2 text-xl font-semibold tracking-[-0.035em] text-card-foreground">Testar identificação</h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">Envie uma foto para verificar se ela corresponde a algum cachorro cadastrado.</p>
               </div>
               <ArrowUpRight className="mb-1 h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-1 group-hover:-translate-y-1 group-hover:text-primary" />
             </div>

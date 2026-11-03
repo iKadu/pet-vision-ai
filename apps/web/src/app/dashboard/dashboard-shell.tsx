@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import {
   Camera,
   BarChart3,
+  FlaskConical,
   ChevronRight,
   Dog,
   LayoutDashboard,
@@ -69,6 +70,13 @@ export default function DashboardShell({ children }: Props) {
       description: 'Perfis e referências',
       icon: Dog,
       active: pathname.startsWith('/dashboard/animals'),
+    },
+    {
+      href: '/dashboard/tests' as Route,
+      label: 'Testes',
+      description: 'Identificar por foto',
+      icon: FlaskConical,
+      active: pathname.startsWith('/dashboard/tests'),
     },
     {
       href: '/dashboard/reports' as Route,
