@@ -1,6 +1,5 @@
 import Link from "next/link";
-import type { Route } from "next";
-import { ArrowUpRight, Plus, ScanSearch, UsersRound } from "lucide-react";
+import { ArrowUpRight, Plus, UsersRound } from "lucide-react";
 
 export default function AnimalsPage() {
   return (
@@ -38,17 +37,6 @@ export default function AnimalsPage() {
             </div>
           </Link>
 
-          <Link href={'/dashboard/tests' as Route} className="group rounded-[28px] border border-border/80 bg-card/80 p-6 shadow-[0_12px_35px_oklch(0_0_0_/_0.04)] backdrop-blur-sm transition duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_40px_oklch(0_0_0_/_0.07)] sm:p-8">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-accent-foreground"><ScanSearch className="h-5 w-5" /></span>
-            <div className="mt-12 flex items-end justify-between gap-5 sm:mt-16">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Validação visual</p>
-                <h2 className="mt-2 text-xl font-semibold tracking-[-0.035em] text-card-foreground">Testar identificação</h2>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">Envie uma foto para verificar se ela corresponde a algum cachorro cadastrado.</p>
-              </div>
-              <ArrowUpRight className="mb-1 h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-1 group-hover:-translate-y-1 group-hover:text-primary" />
-            </div>
-          </Link>
         </section>
       </div>
     </div>

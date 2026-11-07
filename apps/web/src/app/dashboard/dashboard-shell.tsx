@@ -7,11 +7,11 @@ import { useEffect, useState } from 'react';
 import {
   Camera,
   BarChart3,
-  FlaskConical,
   ChevronRight,
   Dog,
   LayoutDashboard,
   Menu,
+  ScanSearch,
   Settings2,
   X,
 } from 'lucide-react';
@@ -44,11 +44,11 @@ export default function DashboardShell({ children }: Props) {
 
   const links: NavigationItem[] = [
     {
-      href: '/dashboard/videos' as Route,
-      label: 'Vídeos',
-      description: 'Análise de gravações',
-      icon: Camera,
-      active: pathname.startsWith('/dashboard/videos'),
+      href: '/dashboard/tests' as Route,
+      label: 'Análises',
+      description: 'Imagens e vídeos',
+      icon: ScanSearch,
+      active: pathname.startsWith('/dashboard/tests') || pathname.startsWith('/dashboard/videos'),
     },
     {
       href: '/dashboard',
@@ -70,13 +70,6 @@ export default function DashboardShell({ children }: Props) {
       description: 'Perfis e referências',
       icon: Dog,
       active: pathname.startsWith('/dashboard/animals'),
-    },
-    {
-      href: '/dashboard/tests' as Route,
-      label: 'Testes',
-      description: 'Identificar por foto',
-      icon: FlaskConical,
-      active: pathname.startsWith('/dashboard/tests'),
     },
     {
       href: '/dashboard/reports' as Route,
