@@ -34,14 +34,15 @@ export function StreamDetectionOverlay({
         const boxY = detection.bbox.y * frameHeight;
         const boxWidth = detection.bbox.width * frameWidth;
         const boxHeight = detection.bbox.height * frameHeight;
+        const detail = display.detail;
         const labelWidth = Math.min(
           Math.max(
-            168,
-            Math.max(display.name.length, display.status.length) * 9 + 84,
+            300,
+            Math.max(display.name.length, display.status.length, detail.length) * 14 + 128,
           ),
-          Math.max(168, frameWidth - 16),
+          Math.max(300, frameWidth - 16),
         );
-        const labelHeight = 58;
+        const labelHeight = 110;
         const labelX = Math.min(
           Math.max(8, boxX),
           Math.max(8, frameWidth - labelWidth - 8),
@@ -74,7 +75,6 @@ export function StreamDetectionOverlay({
           width: labelWidth,
           height: labelHeight,
         });
-        const detail = display.detail;
         const overlayTransition = {
           transition:
             "x 120ms cubic-bezier(0.16, 1, 0.3, 1), y 120ms cubic-bezier(0.16, 1, 0.3, 1), width 120ms cubic-bezier(0.16, 1, 0.3, 1), height 120ms cubic-bezier(0.16, 1, 0.3, 1)",
@@ -112,29 +112,29 @@ export function StreamDetectionOverlay({
               style={overlayTransition}
             />
             <text
-              x={labelX + 12}
-              y={labelY + 20}
+              x={labelX + 18}
+              y={labelY + 31}
               fill={display.accent}
-              fontSize="13"
+              fontSize="20"
               fontWeight="700"
             >
               {display.status.toUpperCase()}
             </text>
             <text
-              x={labelX + 12}
-              y={labelY + 38}
+              x={labelX + 18}
+              y={labelY + 70}
               fill="#f8fafc"
-              fontSize="16"
+              fontSize="32"
               fontWeight="700"
             >
               {display.name}
             </text>
             <text
-              x={labelX + 12}
-              y={labelY + 52}
+              x={labelX + 18}
+              y={labelY + 96}
               fill="#a1a1aa"
-              fontSize="11"
-              fontWeight="500"
+              fontSize="22"
+              fontWeight="600"
             >
               {detail}
             </text>

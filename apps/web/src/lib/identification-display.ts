@@ -61,10 +61,7 @@ export function suppressDuplicateStreamDetections(detections: StreamDetection[])
 export function identificationDisplay(detection: StreamDetection) {
   const evidence = (identification: StreamDetection["identification"]) => {
     if (!identification?.similarity) return "Evidência visual indisponível";
-    const similarity = `Similaridade ${Math.round(identification.similarity * 100)}%`;
-    return typeof identification.margin === "number"
-      ? `${similarity} · margem +${Math.round(identification.margin * 100)} pts`
-      : similarity;
+    return `Similaridade ${Math.round(identification.similarity * 100)}%`;
   };
 
   if (detection.identification?.status === "identified") {
@@ -76,10 +73,10 @@ export function identificationDisplay(detection: StreamDetection) {
     };
   }
   if (detection.identification?.status === "confirming") {
-    return { accent: "#93c5fd", name: detection.identification.pet_name ?? "Pet candidato", status: "Confirmando identidade", detail: "Aguardando nova leitura consistente" };
+    return { accent: "#93c5fd", name: detection.identification.pet_name ?? "Pet candidato", status: "Confirmando identidade", detail: evidence(detection.identification) };
   }
   if (detection.identification?.status === "possible") {
-    return { accent: "#fbbf24", name: detection.identification.pet_name ?? "Pet candidato", status: "Possível identificação", detail: `${evidence(detection.identification)} · margem insuficiente` };
+    return { accent: "#fbbf24", name: detection.identification.pet_name ?? "Pet candidato", status: "Possível identificação", detail: evidence(detection.identification) };
   }
   if (detection.identification?.status === "unknown") {
     return { accent: "#fbbf24", name: "Nome: —", status: "Não identificado", detail: "Sem referência compatível" };
