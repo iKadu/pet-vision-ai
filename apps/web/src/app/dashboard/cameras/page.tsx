@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import {
   ArrowUpRight,
@@ -30,6 +30,7 @@ import { trpc } from '@/utils/trpc';
 
 const ENGINE_URL = AI_ENGINE_URL;
 const ENGINE_REQUEST_TIMEOUT_MS = 5_000;
+const MINIMUM_FRESH_OVERLAY_WINDOW_MS = 750;
 type CameraType = 'webcam' | 'screen' | 'rtsp';
 
 type StreamStatus = {
@@ -43,6 +44,7 @@ type StreamStatus = {
   fps: number;
   latency_ms: number;
   cycle_latency_ms: number;
+  detections_updated_at: number | null;
 };
 
 function sourceLabel(source: CameraType) {
@@ -82,6 +84,7 @@ export default function CamerasPage() {
     source: string;
   } | null>(null);
   const [cameraToDelete, setCameraToDelete] = useState<{ id: string; name: string } | null>(null);
+  const queryClient = useQueryClient();
 
   const camerasQuery = useQuery(trpc.cameras.list.queryOptions());
   const streamStatusQuery = useQuery({
@@ -122,12 +125,19 @@ export default function CamerasPage() {
     }
   }, [streamStatusQuery.data]);
 
+  const targetFps = streamStatusQuery.data?.target_fps ?? 2;
+  const overlayFreshnessWindowMs = Math.max(
+    MINIMUM_FRESH_OVERLAY_WINDOW_MS,
+    (1_000 / Math.max(targetFps, 0.5)) * 3,
+  );
+  const lastDetectionAt = streamStatusQuery.data?.detections_updated_at;
+  const overlayAgeMs = lastDetectionAt == null ? Number.POSITIVE_INFINITY : Date.now() - lastDetectionAt * 1_000;
+  const hasFreshOverlay = overlayAgeMs >= 0 && overlayAgeMs <= overlayFreshnessWindowMs;
   const streamDetections = suppressDuplicateStreamDetections(
-    streamStatusQuery.data?.detections ?? [],
+    hasFreshOverlay ? (streamStatusQuery.data?.detections ?? []) : [],
   );
   const frameWidth = streamStatusQuery.data?.frame_width || 16;
   const frameHeight = streamStatusQuery.data?.frame_height || 9;
-  const targetFps = streamStatusQuery.data?.target_fps ?? 2;
   const captureFps = streamStatusQuery.data?.capture_fps ?? 0;
   const measuredFps = streamStatusQuery.data?.fps ?? 0;
   const cycleLatency = streamStatusQuery.data?.cycle_latency_ms ?? 0;
@@ -184,7 +194,22 @@ export default function CamerasPage() {
 
   const defaultCamera = camerasQuery.data?.find((camera) => camera.isDefault);
 
+  function clearStreamOverlay() {
+    queryClient.setQueryData<StreamStatus | undefined>(['ai-stream-status'], (currentStatus) => (
+      currentStatus
+        ? {
+          ...currentStatus,
+          detections: [],
+          detections_updated_at: null,
+          frame_width: 0,
+          frame_height: 0,
+        }
+        : currentStatus
+    ));
+  }
+
   async function startMonitoring(sourceValue: string, cameraId?: string) {
+    clearStreamOverlay();
     const monitoringSession = await startMonitoringSession.mutateAsync({ cameraId });
     try {
       await activateAiStream(sourceValue, monitoringSession.id);
@@ -200,6 +225,7 @@ export default function CamerasPage() {
   }
 
   async function stopMonitoring() {
+    clearStreamOverlay();
     const response = await fetchEngine('/stream/stop', { method: 'POST' });
     if (!response.ok) throw new Error('Não foi possível alterar o monitoramento');
     await finishMonitoringSession.mutateAsync({ status: 'completed' });

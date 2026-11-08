@@ -151,6 +151,8 @@ active_stream_token: str | None = None
 latest_detections: list[dict] = []
 latest_frame_width = 0
 latest_frame_height = 0
+latest_detection_timestamp: float | None = None
+stream_generation = 0
 recent_events: list[dict] = []
 next_event_id = 1
 current_presence_event_id: int | None = None
@@ -317,8 +319,17 @@ def create_identification_requests(frame, detections: list[dict], timestamp: flo
 
     return requests_to_match
 
-def process_stream():
-    global last_tracking_webhook_timestamp, last_processing_latency_ms, last_cycle_latency_ms, measured_fps, last_frame_timestamp, latest_detections, latest_frame_width, latest_frame_height, current_presence_event_id, last_identified_pets
+def clear_stream_analysis_state():
+    """Remove dados de análise que não pertencem mais à prévia atual."""
+    global latest_detections, latest_frame_width, latest_frame_height, latest_detection_timestamp
+    latest_detections = []
+    latest_frame_width = 0
+    latest_frame_height = 0
+    latest_detection_timestamp = None
+
+
+def process_stream(generation: int):
+    global last_tracking_webhook_timestamp, last_processing_latency_ms, last_cycle_latency_ms, measured_fps, last_frame_timestamp, latest_detections, latest_frame_width, latest_frame_height, latest_detection_timestamp, current_presence_event_id, last_identified_pets
     
     try:
         stream_reader.start()
@@ -345,6 +356,10 @@ def process_stream():
                 verbose=False,
             )
             last_processing_latency_ms = round((time.perf_counter() - inference_started) * 1000, 1)
+            # Uma troca/parada de fonte pode acontecer enquanto o modelo analisa um frame.
+            # Nesse caso, a execução anterior não pode publicar caixas na nova prévia.
+            if generation != stream_generation or not stream_reader.is_running:
+                break
             boxes = results[0].boxes
             frame_height, frame_width = frame.shape[:2]
             latest_frame_width = frame_width
@@ -384,6 +399,8 @@ def process_stream():
                 for monitoring_event in monitoring_events:
                     record_monitoring_event(monitoring_event["event_type"], f"Evento de monitoramento: {monitoring_event['event_type']}", **{key: value for key, value in monitoring_event.items() if key != "event_type"})
                 send_webhook_event("pet_monitoring_events", {"events": monitoring_events})
+            if generation != stream_generation or not stream_reader.is_running:
+                break
             latest_detections = [
                 {
                     key: detection[key]
@@ -392,6 +409,7 @@ def process_stream():
                 }
                 for detection in detections
             ]
+            latest_detection_timestamp = current_time
             pet_names = identified_pet_names(detections)
             current_identified_pets = identified_pets(detections)
             if current_identified_pets:
@@ -475,7 +493,9 @@ def process_stream():
     except Exception as e:
         print(f"[IA Engine] Erro no processamento: {e}")
     finally:
-        stream_reader.stop()
+        # Um processo antigo não deve encerrar uma nova fonte iniciada em seguida.
+        if generation == stream_generation:
+            stream_reader.stop()
 
 @app.get("/status")
 def get_status():
@@ -494,6 +514,7 @@ def get_status():
         "latency_ms": last_processing_latency_ms,
         "cycle_latency_ms": last_cycle_latency_ms,
         "detections": latest_detections,
+        "detections_updated_at": latest_detection_timestamp,
         "frame_width": latest_frame_width,
         "frame_height": latest_frame_height,
         "recent_events": recent_events,
@@ -501,7 +522,7 @@ def get_status():
 
 @app.post("/stream/start")
 def start_stream(request: StreamStartRequest, background_tasks: BackgroundTasks):
-    global active_stream_token, last_cycle_latency_ms, last_frame_timestamp, last_processing_latency_ms, measured_fps
+    global active_stream_token, last_cycle_latency_ms, last_frame_timestamp, last_processing_latency_ms, measured_fps, stream_generation
     presence_monitor.configure(
         request.absence_alert_seconds,
         request.notification_cooldown_seconds,
@@ -514,15 +535,21 @@ def start_stream(request: StreamStartRequest, background_tasks: BackgroundTasks)
     last_cycle_latency_ms = 0.0
     measured_fps = 0.0
     last_frame_timestamp = None
-    background_tasks.add_task(process_stream)
+    clear_stream_analysis_state()
+    stream_generation += 1
+    background_tasks.add_task(process_stream, stream_generation)
     return {"message": "Monitoramento de presença iniciado."}
 
 @app.post("/stream/source")
 def set_stream_source(request: StreamSourceRequest):
+    global stream_generation
     next_source = stream_reader._normalize_source(request.source)
     source_changed = next_source != stream_reader.source
-    if stream_reader.is_running and source_changed:
-        stream_reader.stop()
+    if source_changed:
+        stream_generation += 1
+        if stream_reader.is_running:
+            stream_reader.stop()
+        clear_stream_analysis_state()
     stream_reader.source = next_source
     return {
         "message": "Fonte do stream atualizada." if source_changed else "Fonte do stream já está ativa.",
@@ -532,12 +559,11 @@ def set_stream_source(request: StreamSourceRequest):
 
 @app.post("/stream/stop")
 def stop_stream():
-    global active_stream_token, last_cycle_latency_ms, last_frame_timestamp, last_processing_latency_ms, latest_detections, latest_frame_width, latest_frame_height, measured_fps
+    global active_stream_token, last_cycle_latency_ms, last_frame_timestamp, last_processing_latency_ms, measured_fps, stream_generation
+    stream_generation += 1
     stream_reader.stop()
     active_stream_token = None
-    latest_detections = []
-    latest_frame_width = 0
-    latest_frame_height = 0
+    clear_stream_analysis_state()
     last_processing_latency_ms = 0.0
     last_cycle_latency_ms = 0.0
     measured_fps = 0.0
